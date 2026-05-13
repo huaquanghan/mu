@@ -1,0 +1,32 @@
+# mu default protected paths — never touched without explicit --force
+# Add your own entries under [user] section in ~/.config/mu/config.toml
+
+[protected_paths]
+system = [
+  "/",
+  "/boot",
+  "/etc",
+  "/usr",
+  "/lib",
+  "/lib64",
+  "/bin",
+  "/sbin",
+  "/proc",
+  "/sys",
+  "/dev",
+  "/run",
+]
+
+# Kernel currently in use is always protected (detected at runtime via uname -r)
+protect_running_kernel = true
+
+# Cache dirs to always skip inside ~/.cache
+[cache_skip]
+dirs = [
+  "mozilla/firefox/*/startupCache",   # Firefox session state
+  "google-chrome/Default/Session*",   # Chrome active session
+]
+
+# Optimize steps to skip (apt, journal, caches)
+[optimize_skip]
+steps = []
