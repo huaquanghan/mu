@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,8 +103,13 @@ func (m mainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+const banner = `░█▄▒▄█░█▒█░░
+░█▒▀▒█░▀▄█▒░`
+
 func (m mainMenuModel) View() string {
-	s := titleStyle.Render("  mu — Mole Ubuntu") + "\n"
+	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED")).Bold(true).Render(banner)
+	s := "  " + strings.ReplaceAll(bannerStr, "\n", "\n  ") + "\n"
+	s += titleStyle.Render("  Mole Ubuntu — safe system cleaner") + "\n"
 
 	if m.snapshot == nil {
 		s += snapshotStyle.Render("Loading...") + "\n\n"
