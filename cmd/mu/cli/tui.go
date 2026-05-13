@@ -13,13 +13,13 @@ import (
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#7C3AED")).
+			Foreground(lipgloss.Color("#0097A7")).
 			Padding(0, 1)
 
 	itemStyle     = lipgloss.NewStyle().Padding(0, 2)
 	selectedStyle = lipgloss.NewStyle().
 			Padding(0, 2).
-			Foreground(lipgloss.Color("#7C3AED")).
+			Foreground(lipgloss.Color("#0097A7")).
 			Bold(true)
 	snapshotStyle = lipgloss.NewStyle().Faint(true).Padding(0, 2)
 )
@@ -107,7 +107,7 @@ const banner = `░█▄▒▄█░█▒█░░
 ░█▒▀▒█░▀▄█▒░`
 
 func (m mainMenuModel) View() string {
-	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED")).Bold(true).Render(banner)
+	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7")).Bold(true).Render(banner)
 	s := "  " + strings.ReplaceAll(bannerStr, "\n", "\n  ") + "\n"
 	s += titleStyle.Render("  Mole Ubuntu — safe system cleaner") + "\n"
 

@@ -113,7 +113,7 @@ type optimizeModel struct {
 func newOptimizeModel(steps []step, debug bool) optimizeModel {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7"))
 	return optimizeModel{spinner: sp, steps: steps, debug: debug}
 }
 

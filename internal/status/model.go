@@ -87,7 +87,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the dashboard.
 func (m Model) View() string {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7C3AED")).Render("  mu status")
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0097A7")).Render("  mu status")
 
 	cpuLine := fmt.Sprintf("  CPU:    %.1f%%", m.cpu)
 

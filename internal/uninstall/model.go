@@ -44,9 +44,9 @@ type pkgItem struct {
 }
 
 var (
-	purple    = lipgloss.Color("#7C3AED")
+	cyan    = lipgloss.Color("#0097A7")
 	gray      = lipgloss.Color("#6B7280")
-	checkMark = lipgloss.NewStyle().Foreground(purple).Render("✓")
+	checkMark = lipgloss.NewStyle().Foreground(cyan).Render("✓")
 )
 
 func newModel(opts Options) uninstallModel {
@@ -226,17 +226,17 @@ func (m uninstallModel) View() string {
 			}
 		}
 
-		header := lipgloss.NewStyle().Bold(true).Foreground(purple).
+		header := lipgloss.NewStyle().Bold(true).Foreground(cyan).
 			Render(fmt.Sprintf("  mu uninstall  (%d selected)", nSelected))
 		hint := lipgloss.NewStyle().Faint(true).
 			Render("  Space: select  Enter: confirm  q: quit")
 
 		spinStr := ""
 		if !m.loaded {
-			frame := lipgloss.NewStyle().Foreground(purple).Render(spinnerFrames[m.spinnerIdx])
+			frame := lipgloss.NewStyle().Foreground(cyan).Render(spinnerFrames[m.spinnerIdx])
 			spinStr = "  " + frame
 		}
-		searchLine := lipgloss.NewStyle().Foreground(purple).
+		searchLine := lipgloss.NewStyle().Foreground(cyan).
 			Render(fmt.Sprintf("  Search: %s█%s", m.query, spinStr))
 
 		var sb strings.Builder
