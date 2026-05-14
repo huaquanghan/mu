@@ -1,97 +1,54 @@
 # mu — Mole Ubuntu
 
-A single-binary CLI for Ubuntu that safely cleans, optimizes, and monitors your system. Think CleanMyMac, but for Ubuntu power users.
-
-Every destructive action shows what it would do before it does it.
+A 4 MB binary that cleans, uninstalls, optimizes, and monitors your Ubuntu system. Everything destructive shows you what it's about to do before it does it. Files go to trash, not `/dev/null`.
 
 ---
 
 ## Install
 
-**One-liner (requires Go 1.24.2+):**
-
+**One-liner:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/huaquanghan/mu/main/scripts/install.sh | bash
 ```
 
-**Build from source:**
-
+**From source** (requires Go 1.24.2+):
 ```bash
 git clone https://github.com/huaquanghan/mu
 cd mu
-make build          # produces ./bin/mu
-sudo make install   # installs to /usr/local/bin/mu
+make build          # → ./bin/mu
+make install-local  # → ~/.local/bin/mu (no sudo)
 ```
 
-> **Note:** Go 1.24.2 or later is required (forced by `github.com/charmbracelet/bubbles v1.0.0`). On Ubuntu 22.04 which ships Go 1.18, install a newer toolchain via `sudo snap install go --classic` or from [go.dev/dl](https://go.dev/dl/).
+> Ubuntu 22.04 ships Go 1.18. Install a newer toolchain: `sudo snap install go --classic`
 
 ---
 
-## Quick Start
+## Usage
 
 ```
-# Open interactive TUI menu (shows live CPU/RAM/disk snapshot)
-mu
-
-# Preview what would be cleaned — nothing is deleted
-mu clean --dry-run
-
-# Clean with confirmation prompt
-mu clean
-
-# Include browser and Docker caches (opt-in)
+mu                              # interactive TUI menu
+mu clean --dry-run              # preview what would be cleaned
+mu clean                        # clean with YES/NO confirmation
 mu clean --include=browser-cache,docker
-
-# Live system dashboard (CPU, RAM, disk, network, health score)
-mu status
-
-# JSON output for scripting
-mu status | jq '.health'
-
-# Preview uninstall with remnant detection
-mu uninstall --dry-run
-
-# Preview maintenance tasks
-mu optimize --dry-run
+mu uninstall                    # search and remove packages + remnants
+mu optimize --dry-run           # preview maintenance steps
+mu optimize --skip=apt          # skip specific steps
+mu status                       # live CPU/RAM/disk/network dashboard
+mu status | jq '.health'        # JSON when piped
 ```
 
-**Example `mu clean --dry-run` output:**
+### `mu` (TUI menu)
 
-```
-🔍 Scanning system...
+Opens an interactive menu with a live system snapshot (CPU, RAM, disk). Select any command with arrow keys or `j/k`. Pressing `q` from any sub-screen returns to the menu.
 
-  User Cache (~/.cache)                    2.1 GB
-  Thumbnail Cache                          48.2 MB
-  APT Package Cache                        312.8 MB
-  Journal Logs                             180.4 MB
-  Snap Disabled Revisions                  620.0 MB
-  Old Kernel Packages                      93.2 MB
-  Docker Build Cache                       0 B
-  --------------------------------------------------
-  Potential space to free: 3.4 GB
+### `mu clean`
 
-⚠️  This is a DRY RUN. No files will be deleted.
-Run without --dry-run to proceed.
-```
+Scans and frees disk space across:
 
----
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `mu` | Interactive TUI menu with system health snapshot |
-| `mu clean [--dry-run] [--include=...]` | Scan and clean caches, logs, old kernels, snaps |
-| `mu uninstall [--dry-run]` | Remove apps and all config/cache remnants via TUI |
-| `mu optimize [--dry-run] [--skip=...]` | apt autoremove, journal vacuum, cache refresh |
-| `mu status` | Live Bubbletea dashboard; JSON when piped |
-
-### `mu clean` categories
-
-| Category | Default | Opt-in |
-|----------|---------|--------|
+| Category | Default | Flag to enable |
+|----------|:-------:|---------------|
 | User cache (`~/.cache`) | ✓ | |
-| Thumbnails | ✓ | |
+| Thumbnail cache | ✓ | |
 | APT package cache | ✓ | |
 | Journal logs | ✓ | |
 | Snap disabled revisions | ✓ | |
@@ -99,56 +56,54 @@ Run without --dry-run to proceed.
 | Browser caches (Chrome/Firefox/VSCode) | | `--include=browser-cache` |
 | Docker build cache | | `--include=docker` |
 
-### `mu optimize` steps
+### `mu uninstall`
 
-| Step ID | Action | Skip with |
-|---------|--------|-----------|
-| `apt` | `apt update && apt autoremove --purge` | `--skip=apt` |
-| `journal` | `journalctl --vacuum-size=500M` | `--skip=journal` |
-| `caches` | `update-mime-database`, `fc-cache -f` | `--skip=caches` |
+Type to search installed packages (APT + Snap). Space to select multiple. Shows installed size plus leftover config/cache dirs before you confirm. Confirmation requires selecting YES from a button prompt — the default is NO.
 
-Persistent skip list: add `steps = ["apt"]` under `[optimize_skip]` in `~/.config/mu/config.toml`.
+### `mu optimize`
+
+Runs: `apt update && apt autoremove`, `journalctl --vacuum-size=500M`, and icon/font/MIME cache refresh. Steps can be skipped per-run (`--skip=apt`) or permanently via config.
+
+### `mu status`
+
+Live-updating dashboard reading directly from `/proc`. Shows CPU%, RAM, disk per mount, network I/O rates, and a health score (0–100 weighted: CPU 30%, RAM 30%, disk 30%, swap 10%). Outputs JSON when stdout is not a TTY.
 
 ---
 
-## Safety Philosophy
+## Safety
 
-- **Dry-run first.** Every destructive command supports `--dry-run`. No surprises.
-- **Trash, not delete.** User-owned files go to `~/.local/share/Trash` via `gio trash`, never `rm -rf`.
-- **Protected paths.** `/`, `/boot`, `/etc`, `/usr`, `/lib`, `/bin`, `/sbin`, `/proc`, `/sys`, `/dev`, `/run` are blocked at the code level. The running kernel is never touched.
-- **Full audit log.** Every operation is logged to `~/.local/share/mu/operations.log` (10 MB, 1 rotation). Disable with `MU_NO_OPLOG=1`.
+- **Trash, not delete.** User-owned files go through `gio trash` (falls back to XDG trash spec). `rm` is never used on user data.
+- **Protected paths.** `/`, `/boot`, `/etc`, `/usr`, `/lib`, `/bin`, `/sbin`, `/proc`, `/sys`, `/dev`, `/run` are blocked in code. The running kernel is never touched.
+- **Dry-run everywhere.** Every destructive command has `--dry-run`. No surprises.
+- **Audit log.** All operations log to `~/.local/share/mu/operations.log` (10 MB, 1 rotation). Disable: `MU_NO_OPLOG=1`.
 
 ---
 
 ## Configuration
 
-User config file: `~/.config/mu/config.toml`
+`~/.config/mu/config.toml` — overrides defaults from `configs/default-whitelist.toml`:
 
 ```toml
 [protected_paths]
-system = ["/data", "/mnt/backup"]   # additional protected paths
+system = ["/data", "/mnt/backup"]
 
 [cache_skip]
-dirs = ["my-app/important-cache"]   # globs relative to ~/.cache to skip
+dirs = ["my-app/important-cache"]
 
 [optimize_skip]
-steps = ["apt"]                     # always skip apt in optimize
+steps = ["apt"]   # always skip apt in optimize
 ```
 
 ---
 
-## Compatibility
+## Requirements
 
-- Ubuntu 22.04 LTS, 24.04 LTS (primary targets)
-- Debian 12+ (compatible, not officially tested)
-- Go 1.24.2+ required to build from source
-- Requires: `gio` (from `glib2`), `dpkg-query`, `journalctl`; `snap` and `docker` optional
+- Ubuntu 22.04 / 24.04 LTS (primary). Debian 12+, Pop!\_OS, Mint: compatible, not officially tested.
+- Runtime: `gio` (from `glib2`), `dpkg-query`, `journalctl`. `snap` and `docker` are optional.
+- Build: Go 1.24.2+.
 
 ---
 
 ## Contributing
 
-1. Fork, create a branch, open a PR
-2. `make test` must pass; `make build` must produce a binary under 25 MB
-3. All destructive code paths must have a `--dry-run` test
-4. Report security issues at the GitHub Issues page (see `SECURITY.md`)
+`make test` must pass. `make build` must stay under 25 MB. All destructive paths need a `--dry-run` branch. See `SECURITY.md` for reporting vulnerabilities.
