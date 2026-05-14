@@ -108,7 +108,7 @@ const banner = `░█▄▒▄█░█▒█░░
 
 func (m mainMenuModel) View() string {
 	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7")).Bold(true).Render(banner)
-	s := "  " + strings.ReplaceAll(bannerStr, "\n", "\n  ") + "\n"
+	s := "\n\n  " + strings.ReplaceAll(bannerStr, "\n", "\n  ") + "\n"
 	s += titleStyle.Render("  Mole Ubuntu — safe system cleaner") + "\n"
 
 	if m.snapshot == nil {
@@ -133,7 +133,7 @@ func (m mainMenuModel) View() string {
 			s += itemStyle.Render(fmt.Sprintf("  %-14s %s", item.label, item.desc)) + "\n"
 		}
 	}
-	s += "\n" + itemStyle.Render("↑/↓ or j/k to navigate  •  Enter to select  •  q to quit")
+	s += "\n\n\n" + itemStyle.Render("↑/↓ or j/k to navigate  •  Enter to select  •  q to quit")
 	return s
 }
 
@@ -150,26 +150,34 @@ func humanKB(kb uint64) string {
 }
 
 func runTUI() error {
-	m := mainMenuModel{}
-	p := tea.NewProgram(m, tea.WithAltScreen())
-	result, err := p.Run()
-	if err != nil {
-		return err
+	for {
+		m := mainMenuModel{}
+		p := tea.NewProgram(m, tea.WithAltScreen())
+		result, err := p.Run()
+		if err != nil {
+			return err
+		}
+		final, ok := result.(mainMenuModel)
+		if !ok || final.chosen == "" || final.chosen == "quit" {
+			return nil
+		}
+		switch final.chosen {
+		case "clean":
+			if err := runClean(); err != nil {
+				return err
+			}
+		case "uninstall":
+			if err := runUninstall(); err != nil {
+				return err
+			}
+		case "optimize":
+			if err := runOptimize(); err != nil {
+				return err
+			}
+		case "status":
+			if err := runStatus(); err != nil {
+				return err
+			}
+		}
 	}
-	final, ok := result.(mainMenuModel)
-	if !ok || final.chosen == "" || final.chosen == "quit" {
-		return nil
-	}
-	// Dispatch to subcommand after TUI exits
-	switch final.chosen {
-	case "clean":
-		return runClean()
-	case "uninstall":
-		return runUninstall()
-	case "optimize":
-		return runOptimize()
-	case "status":
-		return runStatus()
-	}
-	return nil
 }

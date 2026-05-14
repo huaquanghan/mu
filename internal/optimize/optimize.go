@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/huaquanghan/mu/internal/ui"
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
@@ -66,10 +67,7 @@ func Run(opts Options) error {
 		return nil
 	}
 
-	fmt.Print("\nType 'YES' to continue: ")
-	var input string
-	fmt.Scanln(&input)
-	if input != "YES" {
+	if !ui.Confirm("Proceed to optimize?") {
 		fmt.Println("Aborted.")
 		return nil
 	}
@@ -174,7 +172,8 @@ func (m optimizeModel) View() string {
 			out += fmt.Sprintf("  ⏳ %s\n", s.desc)
 		}
 	}
-	return "\n" + out
+	hint := lipgloss.NewStyle().Faint(true).Render("  ctrl+c to cancel")
+	return "\n" + out + "\n\n" + hint + "\n"
 }
 
 func aptAutoremove() error {

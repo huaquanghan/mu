@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/huaquanghan/mu/internal/ui"
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
@@ -57,10 +58,7 @@ func Run(opts Options) error {
 		return nil
 	}
 
-	fmt.Print("\nType 'YES' to continue: ")
-	var input string
-	fmt.Scanln(&input)
-	if input != "YES" {
+	if !ui.Confirm("Proceed to clean?") {
 		fmt.Println("Aborted.")
 		return nil
 	}

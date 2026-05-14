@@ -125,10 +125,10 @@ func (m Model) View() string {
 
 	footer := lipgloss.NewStyle().Faint(true).Render("  q to quit")
 
-	parts := []string{title, "", cpuLine, ramLine}
+	parts := []string{"", "", title, "", cpuLine, ramLine}
 	parts = append(parts, diskLines...)
 	parts = append(parts, netLines...)
-	parts = append(parts, "", badge, footer)
+	parts = append(parts, "", "", badge, footer)
 	return strings.Join(parts, "\n")
 }
 

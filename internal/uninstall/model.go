@@ -24,18 +24,19 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 type tickMsg struct{}
 
 type uninstallModel struct {
-	phase       phase
-	spinnerIdx  int
-	allItems    []pkgItem // full loaded list
-	items       []pkgItem // filtered view
-	query       string
-	loaded      bool
-	cursor      int
-	selected    map[string]bool
-	opts        Options
-	windowWidth int
-	windowH     int
-	scrollOff   int
+	phase         phase
+	spinnerIdx    int
+	allItems      []pkgItem // full loaded list
+	items         []pkgItem // filtered view
+	query         string
+	loaded        bool
+	cursor        int
+	selected      map[string]bool
+	opts          Options
+	windowWidth   int
+	windowH       int
+	scrollOff     int
+	confirmCursor int // 0=YES 1=NO
 }
 
 type pkgItem struct {
@@ -180,6 +181,7 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			m.phase = phaseConfirm
+			m.confirmCursor = 1 // default to NO
 			return m, nil
 
 		default:
@@ -197,10 +199,15 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		switch msg.String() {
-		case "ctrl+c", "q", "n", "N":
+		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "y", "Y":
-			m.phase = phaseDone
+		case "left", "h", "right", "l", "tab":
+			m.confirmCursor = 1 - m.confirmCursor
+		case "enter":
+			if m.confirmCursor == 0 {
+				m.phase = phaseDone
+				return m, tea.Quit
+			}
 			return m, tea.Quit
 		}
 	}
@@ -240,7 +247,7 @@ func (m uninstallModel) View() string {
 			Render(fmt.Sprintf("  Search: %s█%s", m.query, spinStr))
 
 		var sb strings.Builder
-		sb.WriteString(header + "\n")
+		sb.WriteString("\n\n" + header + "\n")
 		sb.WriteString(hint + "\n\n")
 		sb.WriteString(searchLine + "\n\n")
 
@@ -283,11 +290,13 @@ func (m uninstallModel) View() string {
 			}
 		}
 
+		bottomHint := lipgloss.NewStyle().Faint(true).Render("  Space: select  Enter: confirm  q: quit")
+		sb.WriteString("\n\n" + bottomHint + "\n")
 		return sb.String()
 
 	case phaseConfirm:
 		var sb strings.Builder
-		sb.WriteString(lipgloss.NewStyle().Bold(true).Render("\n  Will remove:\n"))
+		sb.WriteString("\n\n" + lipgloss.NewStyle().Bold(true).Render("  Will remove:\n"))
 		for name, sel := range m.selected {
 			if !sel {
 				continue
@@ -303,11 +312,29 @@ func (m uninstallModel) View() string {
 				break
 			}
 		}
-		sb.WriteString("\n  Press y to confirm, n/q to abort\n")
+
+		activeBtn := lipgloss.NewStyle().Bold(true).
+			Background(cyan).Foreground(lipgloss.Color("#FFFFFF")).
+			Padding(0, 2)
+		inactiveBtn := lipgloss.NewStyle().Bold(true).
+			Background(lipgloss.Color("#374151")).Foreground(lipgloss.Color("#9CA3AF")).
+			Padding(0, 2)
+
+		var yesBtn, noBtn string
+		if m.confirmCursor == 0 {
+			yesBtn = activeBtn.Render("YES")
+			noBtn = inactiveBtn.Render("NO")
+		} else {
+			yesBtn = inactiveBtn.Render("YES")
+			noBtn = activeBtn.Render("NO")
+		}
+		sb.WriteString("\n  " + yesBtn + "  " + noBtn + "\n")
+		sb.WriteString("\n\n" + lipgloss.NewStyle().Faint(true).Render("  ←/→ navigate  Enter: confirm  q: quit") + "\n")
 		return sb.String()
 
 	case phaseDone:
-		return "\n  Done.\n"
+		doneHint := lipgloss.NewStyle().Faint(true).Render("  q to quit")
+		return "\n\n\n  Done.\n\n\n" + doneHint + "\n"
 	}
 	return ""
 }
