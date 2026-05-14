@@ -23,6 +23,10 @@ make install-local  # → ~/.local/bin/mu (no sudo)
 
 ---
 
+![mu TUI main menu — ASCII logo, live CPU/RAM/disk stats, and the five commands (Clean, Uninstall, Optimize, Status, Quit) with one-line descriptions. Arrow keys or j/k navigate; Enter selects; q quits.](docs/screenshot-tui.png)
+
+---
+
 ## Usage
 
 ```
