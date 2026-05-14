@@ -172,8 +172,8 @@ func (m optimizeModel) View() string {
 			out += fmt.Sprintf("  ⏳ %s\n", s.desc)
 		}
 	}
-	hint := lipgloss.NewStyle().Faint(true).Render("  ctrl+c to cancel")
-	return "\n" + out + "\n\n" + hint + "\n"
+	hint := lipgloss.NewStyle().Padding(0, 2).Render("ctrl+c to cancel")
+	return "\n\n" + out + "\n\n\n" + hint + "\n"
 }
 
 func aptAutoremove() error {

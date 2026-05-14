@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/huaquanghan/mu/internal/ui"
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
@@ -235,8 +236,6 @@ func (m uninstallModel) View() string {
 
 		header := lipgloss.NewStyle().Bold(true).Foreground(cyan).
 			Render(fmt.Sprintf("  mu uninstall  (%d selected)", nSelected))
-		hint := lipgloss.NewStyle().Faint(true).
-			Render("  Space: select  Enter: confirm  q: quit")
 
 		spinStr := ""
 		if !m.loaded {
@@ -247,8 +246,7 @@ func (m uninstallModel) View() string {
 			Render(fmt.Sprintf("  Search: %s█%s", m.query, spinStr))
 
 		var sb strings.Builder
-		sb.WriteString("\n\n" + header + "\n")
-		sb.WriteString(hint + "\n\n")
+		sb.WriteString("\n\n" + header + "\n\n")
 		sb.WriteString(searchLine + "\n\n")
 
 		switch {
@@ -290,8 +288,8 @@ func (m uninstallModel) View() string {
 			}
 		}
 
-		bottomHint := lipgloss.NewStyle().Faint(true).Render("  Space: select  Enter: confirm  q: quit")
-		sb.WriteString("\n\n" + bottomHint + "\n")
+		bottomHint := lipgloss.NewStyle().Padding(0, 2).Render("Space: select  •  Enter: confirm  •  q: quit")
+		sb.WriteString("\n\n\n" + bottomHint + "\n")
 		return sb.String()
 
 	case phaseConfirm:
@@ -313,28 +311,14 @@ func (m uninstallModel) View() string {
 			}
 		}
 
-		activeBtn := lipgloss.NewStyle().Bold(true).
-			Background(cyan).Foreground(lipgloss.Color("#FFFFFF")).
-			Padding(0, 2)
-		inactiveBtn := lipgloss.NewStyle().Bold(true).
-			Background(lipgloss.Color("#374151")).Foreground(lipgloss.Color("#9CA3AF")).
-			Padding(0, 2)
-
-		var yesBtn, noBtn string
-		if m.confirmCursor == 0 {
-			yesBtn = activeBtn.Render("YES")
-			noBtn = inactiveBtn.Render("NO")
-		} else {
-			yesBtn = inactiveBtn.Render("YES")
-			noBtn = activeBtn.Render("NO")
-		}
+		yesBtn, noBtn := ui.RenderButtons(m.confirmCursor)
 		sb.WriteString("\n  " + yesBtn + "  " + noBtn + "\n")
-		sb.WriteString("\n\n" + lipgloss.NewStyle().Faint(true).Render("  ←/→ navigate  Enter: confirm  q: quit") + "\n")
+		sb.WriteString("\n\n\n" + lipgloss.NewStyle().Padding(0, 2).Render("←/→ navigate  •  Enter: confirm  •  q: quit") + "\n")
 		return sb.String()
 
 	case phaseDone:
-		doneHint := lipgloss.NewStyle().Faint(true).Render("  q to quit")
-		return "\n\n\n  Done.\n\n\n" + doneHint + "\n"
+		doneHint := lipgloss.NewStyle().Padding(0, 2).Render("q to quit")
+		return "\n\n  Done.\n\n\n" + doneHint + "\n"
 	}
 	return ""
 }

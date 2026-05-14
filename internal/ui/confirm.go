@@ -36,16 +36,17 @@ func (m confirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m confirmModel) View() string {
-	var yesBtn, noBtn string
-	if m.cursor == 0 {
-		yesBtn = confirmActive.Render("YES")
-		noBtn = confirmInactive.Render("NO")
-	} else {
-		yesBtn = confirmInactive.Render("YES")
-		noBtn = confirmActive.Render("NO")
+// RenderButtons returns styled YES and NO strings; cursor 0 = YES active.
+func RenderButtons(cursor int) (yes, no string) {
+	if cursor == 0 {
+		return confirmActive.Render("YES"), confirmInactive.Render("NO")
 	}
-	nav := lipgloss.NewStyle().Faint(true).Render("  ←/→ navigate  Enter: confirm  q: quit")
+	return confirmInactive.Render("YES"), confirmActive.Render("NO")
+}
+
+func (m confirmModel) View() string {
+	yesBtn, noBtn := RenderButtons(m.cursor)
+	nav := lipgloss.NewStyle().Padding(0, 2).Render("←/→ navigate  •  Enter: confirm  •  q: quit")
 	return "\n\n  " + m.prompt + "\n\n  " + yesBtn + "  " + noBtn + "\n\n\n" + nav + "\n"
 }
 

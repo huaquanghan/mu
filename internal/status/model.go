@@ -123,12 +123,12 @@ func (m Model) View() string {
 	badge := lipgloss.NewStyle().Foreground(lipgloss.Color(healthColor)).Bold(true).
 		Render(fmt.Sprintf("  Health: %d/100", m.health))
 
-	footer := lipgloss.NewStyle().Faint(true).Render("  q to quit")
+	footer := lipgloss.NewStyle().Padding(0, 2).Render("q to quit")
 
 	parts := []string{"", "", title, "", cpuLine, ramLine}
 	parts = append(parts, diskLines...)
 	parts = append(parts, netLines...)
-	parts = append(parts, "", "", badge, footer)
+	parts = append(parts, "", "", badge, "", "", "", footer)
 	return strings.Join(parts, "\n")
 }
 
