@@ -3,6 +3,7 @@ package clean
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -122,7 +123,7 @@ func aptCacheTarget() CleanTarget {
 			}
 			cmd := exec.Command("sudo", "apt", "clean")
 			cmd.Stdout = nil
-			cmd.Stderr = nil
+			cmd.Stderr = os.Stderr
 			return cmd.Run()
 		},
 	}
@@ -143,7 +144,7 @@ func journalLogsTarget() CleanTarget {
 			}
 			cmd := exec.Command("journalctl", "--vacuum-time=30d")
 			cmd.Stdout = nil
-			cmd.Stderr = nil
+			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
 				return fmt.Errorf("journalctl vacuum: %w", err)
 			}

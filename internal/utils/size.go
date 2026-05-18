@@ -41,3 +41,16 @@ func PathExists(path string) bool {
 	_, err := os.Lstat(path)
 	return err == nil
 }
+
+// HumanKB formats a kilobyte count as a human-readable string.
+func HumanKB(kb uint64) string {
+	const unit = 1024
+	if kb < unit {
+		return fmt.Sprintf("%d KB", kb)
+	}
+	mb := float64(kb) / unit
+	if mb < unit {
+		return fmt.Sprintf("%.1f MB", mb)
+	}
+	return fmt.Sprintf("%.1f GB", mb/unit)
+}

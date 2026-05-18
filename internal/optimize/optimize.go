@@ -2,9 +2,11 @@ package optimize
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"slices"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,15 +17,16 @@ import (
 
 // Options controls optimize behavior.
 type Options struct {
-	DryRun bool
-	Debug  bool
-	Skip   []string
+	DryRun  bool
+	Debug   bool
+	Skip    []string
+	AutoYes bool
 }
 
 type step struct {
 	id   string
 	desc string
-	run  func() error
+	run  func(io.Writer) error
 }
 
 func allSteps() []step {
@@ -67,7 +70,7 @@ func Run(opts Options) error {
 		return nil
 	}
 
-	if !ui.Confirm("Proceed to optimize?") {
+	if !opts.AutoYes && !ui.Confirm("Proceed to optimize?") {
 		fmt.Println("Aborted.")
 		return nil
 	}
@@ -96,8 +99,9 @@ func Run(opts Options) error {
 // — Bubbletea model for spinner progress —
 
 type stepDoneMsg struct {
-	id  string
-	err error
+	id     string
+	err    error
+	output string
 }
 
 type optimizeModel struct {
@@ -125,8 +129,13 @@ func (m optimizeModel) Init() tea.Cmd {
 func (m optimizeModel) runCurrentStep() tea.Cmd {
 	s := m.steps[m.current]
 	return func() tea.Msg {
-		err := s.run()
-		return stepDoneMsg{id: s.id, err: err}
+		var buf strings.Builder
+		err := s.run(&buf)
+		output := strings.TrimRight(buf.String(), "\n")
+		if len(output) > 4096 {
+			output = output[:4096] + "\n... (truncated)"
+		}
+		return stepDoneMsg{id: s.id, err: err, output: output}
 	}
 }
 
@@ -139,15 +148,21 @@ func (m optimizeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case stepDoneMsg:
 		utils.LogOp("optimize", msg.id)
+		var cmds []tea.Cmd
+		if msg.output != "" {
+			cmds = append(cmds, tea.Println(msg.output))
+		}
 		if msg.err != nil && m.debug {
-			fmt.Fprintf(os.Stderr, "\nwarn: %s: %v\n", msg.id, msg.err)
+			cmds = append(cmds, tea.Println(fmt.Sprintf("warn: %s: %v", msg.id, msg.err)))
 		}
 		m.current++
 		if m.current >= len(m.steps) {
 			m.done = true
-			return m, tea.Quit
+			cmds = append(cmds, tea.Quit)
+			return m, tea.Batch(cmds...)
 		}
-		return m, m.runCurrentStep()
+		cmds = append(cmds, m.runCurrentStep())
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
@@ -176,14 +191,14 @@ func (m optimizeModel) View() string {
 	return "\n\n" + out + "\n\n\n" + hint + "\n"
 }
 
-func aptAutoremove() error {
+func aptAutoremove(out io.Writer) error {
 	for _, args := range [][]string{
 		{"apt", "update"},
 		{"apt", "autoremove", "--purge", "-y"},
 	} {
-		cmd := exec.Command("sudo", append([]string{"-n"}, args...)...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd := exec.Command("sudo", args...)
+		cmd.Stdout = out
+		cmd.Stderr = out
 		if err := cmd.Run(); err != nil {
 			return err
 		}
@@ -191,21 +206,21 @@ func aptAutoremove() error {
 	return nil
 }
 
-func journalVacuum() error {
+func journalVacuum(out io.Writer) error {
 	cmd := exec.Command("journalctl", "--vacuum-size=500M")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = out
+	cmd.Stderr = out
 	return cmd.Run()
 }
 
-func updateCaches() error {
+func updateCaches(out io.Writer) error {
 	for _, args := range [][]string{
 		{"update-mime-database", "/usr/share/mime"},
 		{"fc-cache", "-f"},
 	} {
 		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stdout = out
+		cmd.Stderr = out
 		_ = cmd.Run() // best-effort
 	}
 	return nil

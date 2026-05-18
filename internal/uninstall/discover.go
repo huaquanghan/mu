@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Package represents an installed package and its disk footprint.
@@ -75,13 +76,40 @@ func parseSnapOutput(output string) []Package {
 			continue
 		}
 		pkgs = append(pkgs, Package{
-			Name:        fields[0],
-			Version:     fields[1],
-			Source:      "snap",
-			InstalledKB: 0, // snap size deferred
+			Name:    fields[0],
+			Version: fields[1],
+			Source:  "snap",
 		})
 	}
+	populateSnapSizes(pkgs)
 	return pkgs
+}
+
+func populateSnapSizes(pkgs []Package) {
+	var wg sync.WaitGroup
+	for i := range pkgs {
+		wg.Add(1)
+		go func(p *Package) {
+			defer wg.Done()
+			p.InstalledKB = snapInstalledKB(p.Name)
+		}(&pkgs[i])
+	}
+	wg.Wait()
+}
+
+// snapInstalledKB returns the on-disk size of a snap's current revision in KB.
+func snapInstalledKB(name string) int64 {
+	out, err := exec.Command("du", "-sk", fmt.Sprintf("/snap/%s/current", name)).Output()
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 {
+		return 0
+	}
+	var kb int64
+	fmt.Sscan(fields[0], &kb)
+	return kb
 }
 
 // Discover returns all installed packages (APT + Snap) sorted by name.

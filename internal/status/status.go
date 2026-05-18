@@ -12,12 +12,13 @@ import (
 // Options controls status behavior.
 type Options struct {
 	Debug bool
+	JSON  bool // force JSON output regardless of TTY
 }
 
 // Run launches the live status dashboard.
-// If stdout is not a TTY, prints a JSON snapshot and exits.
+// Outputs JSON if --json is set or stdout is not a TTY.
 func Run(opts Options) error {
-	if !isatty.IsTerminal(os.Stdout.Fd()) {
+	if opts.JSON || !isatty.IsTerminal(os.Stdout.Fd()) {
 		// JSON mode: collect one snapshot (with 1s CPU delta)
 		s1, err := ReadCPU()
 		if err != nil {

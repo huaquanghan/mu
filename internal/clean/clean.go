@@ -14,6 +14,7 @@ type Options struct {
 	DryRun  bool
 	Debug   bool
 	Include []string // opt-in category IDs (e.g. ["browser-cache"])
+	AutoYes bool     // skip confirmation prompt
 }
 
 // Run executes the clean workflow: scan → display → confirm → execute.
@@ -58,7 +59,7 @@ func Run(opts Options) error {
 		return nil
 	}
 
-	if !ui.Confirm("Proceed to clean?") {
+	if !opts.AutoYes && !ui.Confirm("Proceed to clean?") {
 		fmt.Println("Aborted.")
 		return nil
 	}
@@ -72,15 +73,21 @@ func execute(targets []CleanTarget, opts Options) error {
 	}
 	defer utils.CloseLogger()
 
+	var failed int
 	for _, t := range targets {
 		fmt.Printf("→ Cleaning %s...\n", t.Label)
 		if err := t.Execute(opts.DryRun); err != nil {
 			fmt.Fprintf(os.Stderr, "  warn: %v\n", err)
+			failed++
 			continue
 		}
 		fmt.Println("  ✅ Done")
 	}
 
+	if failed > 0 {
+		fmt.Fprintf(os.Stderr, "\n⚠️  %d target(s) had errors.\n", failed)
+		return fmt.Errorf("%d clean target(s) failed", failed)
+	}
 	fmt.Println("\n✅  All done.")
 	return nil
 }

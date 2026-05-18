@@ -3,6 +3,7 @@ package uninstall
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -79,7 +80,7 @@ func (m uninstallModel) Init() tea.Cmd {
 }
 
 func tickCmd() tea.Cmd {
-	return func() tea.Msg { return tickMsg{} }
+	return tea.Tick(80*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func filterItems(all []pkgItem, query string) []pkgItem {
@@ -209,7 +210,9 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.phase = phaseDone
 				return m, tea.Quit
 			}
-			return m, tea.Quit
+			// NO: return to search phase so the user can revise their selection
+			m.phase = phaseSearch
+			return m, nil
 		}
 	}
 
@@ -317,8 +320,7 @@ func (m uninstallModel) View() string {
 		return sb.String()
 
 	case phaseDone:
-		doneHint := lipgloss.NewStyle().Padding(0, 2).Render("q to quit")
-		return "\n\n  Done.\n\n\n" + doneHint + "\n"
+		return "\n\n  Confirmed. Removing packages...\n\n"
 	}
 	return ""
 }

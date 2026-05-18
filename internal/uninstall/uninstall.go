@@ -52,16 +52,20 @@ func Run(opts Options) error {
 		allRemnants = append(allRemnants, pkg.RemnantsFound...)
 	}
 
+	var lastErr error
 	if err := RemoveAPT(aptNames, opts.DryRun); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		lastErr = err
 	}
 	if err := RemoveSnap(snapNames, opts.DryRun); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		lastErr = err
 	}
 	if err := RemoveRemnants(allRemnants, opts.DryRun); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		lastErr = err
 	}
 
 	fmt.Println("\nUninstall complete.")
-	return nil
+	return lastErr
 }

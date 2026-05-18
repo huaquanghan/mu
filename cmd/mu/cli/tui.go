@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/huaquanghan/mu/internal/status"
+	"github.com/huaquanghan/mu/internal/utils"
 )
 
 var (
@@ -120,7 +122,7 @@ func (m mainMenuModel) View() string {
 			cpuStr, ramStr, diskStr = "---", "---", "---"
 		} else {
 			cpuStr = fmt.Sprintf("CPU: %.0f%%", snap.cpu)
-			ramStr = fmt.Sprintf("RAM: %s/%s", humanKB(snap.memUsed), humanKB(snap.memTotal))
+			ramStr = fmt.Sprintf("RAM: %s/%s", utils.HumanKB(snap.memUsed), utils.HumanKB(snap.memTotal))
 			diskStr = fmt.Sprintf("Disk /: %.0f%% free", snap.diskFree)
 		}
 		s += snapshotStyle.Render(fmt.Sprintf("%s  %s  %s", cpuStr, ramStr, diskStr)) + "\n\n"
@@ -137,18 +139,6 @@ func (m mainMenuModel) View() string {
 	return s
 }
 
-func humanKB(kb uint64) string {
-	const unit = 1024
-	if kb < unit {
-		return fmt.Sprintf("%d KB", kb)
-	}
-	mb := float64(kb) / unit
-	if mb < unit {
-		return fmt.Sprintf("%.1f MB", mb)
-	}
-	return fmt.Sprintf("%.1f GB", mb/unit)
-}
-
 func runTUI() error {
 	for {
 		m := mainMenuModel{}
@@ -161,23 +151,19 @@ func runTUI() error {
 		if !ok || final.chosen == "" || final.chosen == "quit" {
 			return nil
 		}
+		var runErr error
 		switch final.chosen {
 		case "clean":
-			if err := runClean(); err != nil {
-				return err
-			}
+			runErr = runClean()
 		case "uninstall":
-			if err := runUninstall(); err != nil {
-				return err
-			}
+			runErr = runUninstall()
 		case "optimize":
-			if err := runOptimize(); err != nil {
-				return err
-			}
+			runErr = runOptimize()
 		case "status":
-			if err := runStatus(); err != nil {
-				return err
-			}
+			runErr = runStatus()
+		}
+		if runErr != nil {
+			fmt.Fprintf(os.Stderr, "\nerror: %v\n", runErr)
 		}
 	}
 }

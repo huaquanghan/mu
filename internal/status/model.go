@@ -2,6 +2,7 @@ package status
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -112,6 +113,7 @@ func (m Model) View() string {
 		netLines = append(netLines, fmt.Sprintf("  Net  %-10s ↑%s/s ↓%s/s",
 			iface, humanBytes(rate.TxBytesPerSec), humanBytes(rate.RxBytesPerSec)))
 	}
+	sort.Strings(netLines)
 
 	healthColor := "#22C55E" // green
 	if m.health < 60 {

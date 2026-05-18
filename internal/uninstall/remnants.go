@@ -22,11 +22,9 @@ var knownAliases = map[string]string{
 
 // FindRemnants returns existing remnant directories for a package.
 func FindRemnants(name string) []string {
-	home, err := os.UserHomeDir()
-	if err != nil {
+	if _, err := os.UserHomeDir(); err != nil {
 		return nil
 	}
-	_ = home // used implicitly via XDG helpers which call os.UserHomeDir internally
 
 	// Collect candidate names (original + alias)
 	names := []string{name}
