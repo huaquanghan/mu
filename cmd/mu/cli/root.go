@@ -6,14 +6,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	dryRun bool
-	debug  bool
-)
+// Version is set at build time via -X ldflags.
+var Version = "dev"
+
+var debug bool
 
 var rootCmd = &cobra.Command{
-	Use:   "mu",
-	Short: "Deep clean & optimize tool for Ubuntu",
+	Use:     "mu",
+	Short:   "Deep clean & optimize tool for Ubuntu",
+	Version: Version,
 	Long: `mu (Mole Ubuntu) — safe, fast system cleaner and optimizer.
 
 Run without arguments to open the interactive TUI menu.
@@ -30,7 +31,6 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Preview actions without making changes")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable verbose debug logging")
 
 	rootCmd.AddCommand(cleanCmd)

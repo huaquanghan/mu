@@ -5,6 +5,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var statusJSON bool
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Live system dashboard: CPU, RAM, disk, network, health score",
@@ -16,15 +18,21 @@ var statusCmd = &cobra.Command{
   • Network I/O (bytes in/out)
   • Computed health score (0-100)
 
-Outputs structured JSON when stdout is not a terminal (piped).
+Use --json to output a structured JSON snapshot and exit.
+When piped (stdout is not a terminal), JSON is used automatically.
 Press q or Ctrl+C to exit the dashboard.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runStatus()
 	},
 }
 
+func init() {
+	statusCmd.Flags().BoolVar(&statusJSON, "json", false, "Output JSON snapshot and exit")
+}
+
 func runStatus() error {
 	return status.Run(status.Options{
 		Debug: debug,
+		JSON:  statusJSON,
 	})
 }

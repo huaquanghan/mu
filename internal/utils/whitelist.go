@@ -1,11 +1,15 @@
 package utils
 
 import (
+	_ "embed"
 	"path/filepath"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 )
+
+//go:embed default-whitelist.toml
+var defaultWhitelistTOML []byte
 
 // Whitelist holds path protection rules and skip lists.
 type Whitelist struct {
@@ -23,14 +27,13 @@ type Whitelist struct {
 
 func defaultWhitelist() *Whitelist {
 	wl := &Whitelist{}
-	wl.ProtectedPaths.System = []string{
-		"/", "/boot", "/etc", "/usr", "/lib", "/lib64",
-		"/bin", "/sbin", "/proc", "/sys", "/dev", "/run",
-	}
-	wl.ProtectedPaths.ProtectRunningKernel = true
-	wl.CacheSkip.Dirs = []string{
-		"mozilla/firefox/*/startupCache",
-		"google-chrome/Default/Session*",
+	if _, err := toml.Decode(string(defaultWhitelistTOML), wl); err != nil {
+		// fallback: safe minimum if TOML is somehow corrupt
+		wl.ProtectedPaths.System = []string{
+			"/", "/boot", "/etc", "/usr", "/lib", "/lib64",
+			"/bin", "/sbin", "/proc", "/sys", "/dev", "/run",
+		}
+		wl.ProtectedPaths.ProtectRunningKernel = true
 	}
 	return wl
 }

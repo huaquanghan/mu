@@ -5,6 +5,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var uninstallDryRun bool
+
 var uninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Remove apps and all their config, cache, and data remnants",
@@ -19,9 +21,13 @@ Use --dry-run to preview without removing anything.`,
 	},
 }
 
+func init() {
+	uninstallCmd.Flags().BoolVar(&uninstallDryRun, "dry-run", false, "Preview actions without making changes")
+}
+
 func runUninstall() error {
 	return uninstall.Run(uninstall.Options{
-		DryRun: dryRun,
+		DryRun: uninstallDryRun,
 		Debug:  debug,
 	})
 }

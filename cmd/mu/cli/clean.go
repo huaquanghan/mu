@@ -5,7 +5,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cleanInclude []string
+var (
+	cleanInclude []string
+	cleanDryRun  bool
+	cleanYes     bool
+)
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
@@ -21,7 +25,8 @@ var cleanCmd = &cobra.Command{
   • Docker build cache (if Docker is installed)
 
 Use --dry-run to preview what would be removed without making changes.
-Use --include=browser-cache to enable opt-in categories.`,
+Use --include=browser-cache to enable opt-in categories.
+Use --yes to skip the confirmation prompt (for scripting).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runClean()
 	},
@@ -29,12 +34,15 @@ Use --include=browser-cache to enable opt-in categories.`,
 
 func init() {
 	cleanCmd.Flags().StringSliceVar(&cleanInclude, "include", nil, "Opt-in categories (e.g. browser-cache)")
+	cleanCmd.Flags().BoolVar(&cleanDryRun, "dry-run", false, "Preview actions without making changes")
+	cleanCmd.Flags().BoolVarP(&cleanYes, "yes", "y", false, "Skip confirmation prompt")
 }
 
 func runClean() error {
 	return clean.Run(clean.Options{
-		DryRun:  dryRun,
+		DryRun:  cleanDryRun,
 		Debug:   debug,
 		Include: cleanInclude,
+		AutoYes: cleanYes,
 	})
 }
