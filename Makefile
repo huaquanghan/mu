@@ -6,7 +6,7 @@ INSTALL_DIR := $(HOME)/.local/bin
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS   := -s -w -X $(MODULE)/cmd/mu/cli.Version=$(VERSION)
 
-.PHONY: build install install-local uninstall test test-verbose test-race smoke clean lint release deps
+.PHONY: build install install-local uninstall test test-verbose test-race smoke clean lint release deps checksums
 
 # ── Build ────────────────────────────────────────────────────────────────────
 
@@ -77,6 +77,13 @@ deps:
 	go get github.com/charmbracelet/lipgloss@latest
 	go get github.com/charmbracelet/bubbles@latest
 	go mod tidy
+
+# checksums.txt for GitHub release assets (required by scripts/install.sh).
+# After tagging a release binary, attach both bin/mu and bin/checksums.txt.
+checksums: build
+	cd $(BUILD_DIR) && sha256sum $(BINARY) > checksums.txt
+	@echo "Wrote $(BUILD_DIR)/checksums.txt:"
+	@cat $(BUILD_DIR)/checksums.txt
 
 release:
 	goreleaser release --clean

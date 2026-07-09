@@ -20,11 +20,33 @@ system = [
 # Kernel currently in use is always protected (detected at runtime via uname -r)
 protect_running_kernel = true
 
-# Cache dirs to always skip inside ~/.cache
+# Cache dirs to always skip inside ~/.cache (relative paths; globs supported)
 [cache_skip]
 dirs = [
-  "mozilla/firefox/*/startupCache",   # Firefox session state
-  "google-chrome/Default/Session*",   # Chrome active session
+  # Tool / language build & package caches (high value to keep)
+  "go-build",
+  "go-mod",
+  "pip",
+  "pypoetry",
+  "npm",
+  "yarn",
+  "pnpm",
+  "typescript",
+  "deno",
+  "bun",
+  "huggingface",
+  "torch",
+  "tldr",
+  "mesa_shader_cache",
+  "nvidia",
+  "flatpak",
+  "JetBrains",
+  # Browser / session-sensitive (whole top-level under ~/.cache)
+  "mozilla",
+  "google-chrome",
+  # Nested globs (also covered by top-level mozilla/google-chrome when present)
+  "mozilla/firefox/*/startupCache",
+  "google-chrome/Default/Session*",
 ]
 
 # Optimize steps to skip (apt, journal, caches)

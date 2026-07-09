@@ -38,7 +38,8 @@ func AllTargets() []CleanTarget {
 	return targets
 }
 
-// userCacheTarget scans ~/.cache but excludes the thumbnails subdir.
+// userCacheTarget scans ~/.cache but excludes the thumbnails subdir
+// and any path matching cache_skip (defaults + user config).
 func userCacheTarget() CleanTarget {
 	cacheHome := utils.XDGCacheHome()
 	thumbDir := filepath.Join(cacheHome, "thumbnails")
@@ -47,6 +48,11 @@ func userCacheTarget() CleanTarget {
 		ID:    "user-cache",
 		Label: "User Cache (~/.cache)",
 		Scan: func() int64 {
+			wl, _ := utils.LoadWhitelist()
+			var patterns []string
+			if wl != nil {
+				patterns = wl.CacheSkip.Dirs
+			}
 			var total int64
 			filepath.WalkDir(cacheHome, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
@@ -55,6 +61,12 @@ func userCacheTarget() CleanTarget {
 				// Skip thumbnails entirely to avoid double-counting
 				if path == thumbDir {
 					return filepath.SkipDir
+				}
+				if path != cacheHome && utils.MatchCacheSkip(path, cacheHome, patterns) {
+					if d.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
 				}
 				if !d.IsDir() {
 					info, err := d.Info()
@@ -67,7 +79,13 @@ func userCacheTarget() CleanTarget {
 			return total
 		},
 		Execute: func(dryRun bool) error {
+			wl, _ := utils.LoadWhitelist()
+			var patterns []string
+			if wl != nil {
+				patterns = wl.CacheSkip.Dirs
+			}
 			// Delete files inside cache dir but skip thumbnails (handled separately)
+			// and denylisted cache_skip entries.
 			entries, err := filepath.Glob(filepath.Join(cacheHome, "*"))
 			if err != nil {
 				return err
@@ -75,6 +93,12 @@ func userCacheTarget() CleanTarget {
 			for _, entry := range entries {
 				base := filepath.Base(entry)
 				if base == "thumbnails" {
+					continue
+				}
+				if utils.ShouldSkipCacheTopLevel(base, patterns) {
+					continue
+				}
+				if utils.MatchCacheSkip(entry, cacheHome, patterns) {
 					continue
 				}
 				if err := utils.SafeDelete(entry, dryRun); err != nil && !dryRun {

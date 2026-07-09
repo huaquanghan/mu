@@ -67,3 +67,56 @@ steps = ["apt"]
 		t.Errorf("expected OptimizeSkip.Steps=[apt], got %v", wl.OptimizeSkip.Steps)
 	}
 }
+
+func TestMatchCacheSkip_TopLevel(t *testing.T) {
+	home := "/home/u/.cache"
+	patterns := []string{"go-build", "pip"}
+	if !MatchCacheSkip(filepath.Join(home, "go-build"), home, patterns) {
+		t.Error("expected go-build to match")
+	}
+	if !MatchCacheSkip(filepath.Join(home, "go-build", "x", "y"), home, patterns) {
+		t.Error("expected go-build child to match")
+	}
+	if MatchCacheSkip(filepath.Join(home, "thumbnails"), home, patterns) {
+		t.Error("thumbnails should not match")
+	}
+}
+
+func TestMatchCacheSkip_Glob(t *testing.T) {
+	home := "/home/u/.cache"
+	patterns := []string{"mozilla/firefox/*/startupCache"}
+	path := filepath.Join(home, "mozilla", "firefox", "abc.default", "startupCache")
+	if !MatchCacheSkip(path, home, patterns) {
+		t.Error("expected nested firefox startupCache to match glob")
+	}
+	if MatchCacheSkip(filepath.Join(home, "mozilla", "firefox", "abc.default", "cache2"), home, patterns) {
+		t.Error("cache2 should not match startupCache pattern")
+	}
+}
+
+func TestShouldSkipCacheTopLevel(t *testing.T) {
+	patterns := []string{"go-build", "mozilla/firefox/*/startupCache", "pip"}
+	if !ShouldSkipCacheTopLevel("go-build", patterns) {
+		t.Error("go-build should be skipped at top level")
+	}
+	if !ShouldSkipCacheTopLevel("mozilla", patterns) {
+		t.Error("mozilla should be skipped (first segment of nested pattern)")
+	}
+	if ShouldSkipCacheTopLevel("thumbnails", patterns) {
+		t.Error("thumbnails should not be skipped via cache_skip")
+	}
+}
+
+func TestDefaultWhitelist_HasGoBuildSkip(t *testing.T) {
+	wl := defaultWhitelist()
+	found := false
+	for _, d := range wl.CacheSkip.Dirs {
+		if d == "go-build" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("default cache_skip must include go-build")
+	}
+}

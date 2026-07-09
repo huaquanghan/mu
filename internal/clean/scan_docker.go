@@ -58,15 +58,12 @@ func parseDockerSize(s string) int64 {
 	return 0
 }
 
-// dockerTarget returns nil if the Docker socket is absent, or a CleanTarget for Docker build cache.
-func dockerTarget() *CleanTarget {
-	if !utils.PathExists(dockerSocket) {
-		return nil
-	}
-
-	t := CleanTarget{
+// newDockerTarget builds the Docker build-cache CleanTarget (always OptIn).
+func newDockerTarget() CleanTarget {
+	return CleanTarget{
 		ID:    "docker",
 		Label: "Docker Build Cache",
+		OptIn: true,
 		Scan: func() int64 {
 			out, err := exec.Command("docker", "system", "df", "--format", "{{json .}}").Output()
 			if err != nil {
@@ -87,5 +84,13 @@ func dockerTarget() *CleanTarget {
 			return nil
 		},
 	}
+}
+
+// dockerTarget returns nil if the Docker socket is absent, or a CleanTarget for Docker build cache.
+func dockerTarget() *CleanTarget {
+	if !utils.PathExists(dockerSocket) {
+		return nil
+	}
+	t := newDockerTarget()
 	return &t
 }

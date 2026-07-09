@@ -6,6 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 make build          # compile → ./bin/mu (CGO_ENABLED=0, stripped)
+make checksums      # build + write bin/checksums.txt (required release asset for install.sh)
 make install-local  # install to ~/.local/bin/mu (no sudo)
 make test           # go test ./... -count=1
 make test-verbose   # go test ./... -v
@@ -46,12 +47,15 @@ go run ./cmd/mu uninstall
 | `optimize` | Plain `fmt.Print` flow → `ui.Confirm()` → Bubbletea spinner for execution. Steps: `apt`, `journal`, `caches`. |
 | `status` | `/proc`-based live dashboard (Bubbletea ticker). JSON output when stdout is not a TTY. `proc.go` reads CPU/RAM/disk/net; `health.go` computes 0-100 score. |
 | `ui` | Shared `Confirm(prompt string) bool` — interactive YES/NO button prompt (default NO). Used by clean and optimize. |
-| `utils` | `SafeDelete` (via `gio trash` or XDG trash fallback), `IsProtected`, `LoadWhitelist`, logger with 10 MB rotation, XDG path helpers. |
+| `utils` | `SafeDelete` (via `gio trash` or XDG trash fallback), `IsProtected`/`IsWhitelisted`, `LoadWhitelist` + `cache_skip` matching, logger with 10 MB rotation, XDG path helpers. |
 
 **Safety invariants (never bypass):**
 - All user-file deletion goes through `utils.SafeDelete` — moves to trash, never `rm`.
-- `utils.IsProtected(path)` is checked before any deletion; hardcoded prefixes in `utils/paths.go`.
-- `LoadWhitelist()` merges `configs/default-whitelist.toml` + `~/.config/mu/config.toml` (user wins on conflicts).
+- `SafeDelete` refuses paths via `IsWhitelisted` (hardcoded prefixes in `utils/paths.go` **plus** user `protected_paths` from config).
+- `LoadWhitelist()` merges embedded `internal/utils/default-whitelist.toml` + `~/.config/mu/config.toml` (user appends for protected/cache_skip).
+- `mu clean` user-cache must honor `cache_skip` (scan size + execute); never wipe denylisted tool caches.
+- Docker build-cache target is **OptIn** (`--include=docker`); browser-cache remains OptIn.
+- `scripts/install.sh` must verify release `checksums.txt` (SHA-256) before install — fail closed.
 - Every destructive path must have a `dryRun bool` branch that logs without acting.
 
 **TUI conventions (Bubbletea + Lipgloss):**

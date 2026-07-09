@@ -11,6 +11,8 @@ A 4 MB binary that cleans, uninstalls, optimizes, and monitors your Ubuntu syste
 curl -fsSL https://raw.githubusercontent.com/huaquanghan/mu/main/scripts/install.sh | bash
 ```
 
+> Install verifies the binary against a release `checksums.txt` asset (SHA-256). Releases must publish `checksums.txt` next to the `mu` binary (`make checksums` after `make build`).
+
 **From source** (requires Go 1.24.2+):
 ```bash
 git clone https://github.com/huaquanghan/mu

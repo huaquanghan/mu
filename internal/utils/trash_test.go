@@ -13,6 +13,42 @@ func TestSafeDelete_ProtectedPath(t *testing.T) {
 	}
 }
 
+func TestSafeDelete_UserProtectedPath(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	ResetWhitelistCacheForTest()
+	t.Cleanup(ResetWhitelistCacheForTest)
+
+	cfgDir := filepath.Join(tmp, "mu")
+	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Protect a custom path under /tmp-like area via absolute path in user config.
+	// Use a unique directory that is not a system path.
+	protected := filepath.Join(tmp, "keep-me")
+	if err := os.MkdirAll(protected, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(protected, "data.txt")
+	if err := os.WriteFile(marker, []byte("safe"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := "[protected_paths]\nsystem = [\"" + protected + "\"]\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"), []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ResetWhitelistCacheForTest()
+
+	err := SafeDelete(marker, false)
+	if err == nil {
+		t.Fatal("expected error for user-whitelisted path, got nil")
+	}
+	if _, statErr := os.Stat(marker); os.IsNotExist(statErr) {
+		t.Error("user-protected file must not be deleted")
+	}
+}
+
 func TestSafeDelete_DryRun(t *testing.T) {
 	f, err := os.CreateTemp("", "mu-trash-test-*")
 	if err != nil {

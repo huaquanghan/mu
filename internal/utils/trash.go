@@ -9,10 +9,11 @@ import (
 )
 
 // SafeDelete moves path to trash (via gio or FreeDesktop fallback).
-// Returns an error if path is protected. Does nothing if dryRun is true.
+// Returns an error if path is a protected system path or user-whitelisted.
+// Does nothing if dryRun is true.
 func SafeDelete(path string, dryRun bool) error {
-	if IsProtected(path) {
-		return fmt.Errorf("refused: %s is a protected system path", path)
+	if IsWhitelisted(path, getWhitelist()) {
+		return fmt.Errorf("refused: %s is a protected path", path)
 	}
 	if dryRun {
 		LogOp("dry-trash", path)
