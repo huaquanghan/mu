@@ -1,0 +1,4 @@
+interface:
+  display_name: "Harness Intake Griller"
+  short_description: "Shape safe, executable mu work stories"
+  default_prompt: "Use $harness-intake-griller to shape this mu request into a risk-classified story with proof."
