@@ -6,7 +6,7 @@ INSTALL_DIR := $(HOME)/.local/bin
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS   := -s -w -X $(MODULE)/cmd/mu/cli.Version=$(VERSION)
 
-.PHONY: build install install-local uninstall test test-verbose test-race smoke clean lint release deps checksums
+.PHONY: build install install-local uninstall test test-verbose test-race smoke run clean lint release deps checksums
 
 # ── Build ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +67,13 @@ smoke: build
 	@echo "=== All smoke checks passed ==="
 
 # ── Dev ───────────────────────────────────────────────────────────────────────
+
+run: build
+	@if [ "$$(id -u)" -ne 0 ]; then \
+		echo "Error: run with sudo: sudo make run"; \
+		exit 1; \
+	fi
+	@$(BUILD_DIR)/$(BINARY)
 
 lint:
 	golangci-lint run ./...
