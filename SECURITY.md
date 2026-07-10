@@ -39,7 +39,7 @@ The following paths are blocked at the code level and cannot be deleted or modif
 ```
 
 Additionally:
-- The **currently running kernel** (detected via `uname -r`) is always excluded from kernel cleanup.
+- APT's simulated `autoremove --purge` policy is the only source of package removal candidates. `mu` does not construct kernel purge lists.
 - `/var/lib/<package>` paths found during remnant detection are **displayed only** — `mu uninstall` does not attempt to delete them (root-only paths; user is shown the path for manual review).
 
 You can add your own protected paths in `~/.config/mu/config.toml`:
@@ -76,9 +76,9 @@ The log rotates at 10 MB (one `.log.1` backup kept). Set `MU_NO_OPLOG=1` to disa
 ## Known Limitations
 
 - `mu uninstall` uses `sudo apt purge` and `sudo snap remove` — these require sudo privileges and will prompt for a password.
-- `mu optimize` apt steps use `sudo -n` (non-interactive); if sudo credentials are not cached, the apt steps are skipped silently (non-fatal).
+- `mu optimize` apt steps use interactive `sudo apt-get` (password prompt when needed). Failed steps are marked failed, remaining steps continue, and the command returns nonzero after completion.
 - `mu clean` with browser cache (`--include=browser-cache`) may trash files from a running browser session. Close the browser first.
-- The running kernel exclusion relies on `uname -r` output matching `dpkg-query` package names. Unusual kernel package naming (e.g., from third-party repos) may not be detected correctly.
+- Real APT, Snap, journal, trash, and interrupted-operation behavior must be validated on disposable supported Ubuntu VMs before release.
 
 ---
 

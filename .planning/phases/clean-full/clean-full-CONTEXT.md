@@ -1,5 +1,7 @@
 # Context: clean-full
 
+> Historical context. Current cleanup safety rules live in `docs/product/README.md` and MU-001.
+
 ## Goal
 Complete the `mu clean` command: implement all scan categories, wire the Bubbles progress bar, and enforce `--include` opt-in for browser caches. This is the primary user-value command and must match the PRD dry-run output format exactly.
 

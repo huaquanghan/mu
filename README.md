@@ -13,7 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/huaquanghan/mu/main/scripts/install
 
 > Install verifies the binary against a release `checksums.txt` asset (SHA-256). Releases must publish `checksums.txt` next to the `mu` binary (`make checksums` after `make build`).
 
-**From source** (requires Go 1.24.2+):
+**From source** (requires Go 1.25.8+):
 ```bash
 git clone https://github.com/huaquanghan/mu
 cd mu
@@ -72,7 +72,7 @@ Scans and frees disk space across:
 | APT package cache | ✓ | |
 | Journal logs | ✓ | |
 | Snap disabled revisions | ✓ | |
-| Old kernel packages | ✓ | |
+| APT autoremove candidates | ✓ | |
 | Browser caches (Chrome/Firefox/VSCode) | | `--include=browser-cache` |
 | Docker build cache | | `--include=docker` |
 
@@ -82,18 +82,20 @@ Type to search installed packages (APT + Snap). Space to select multiple. Shows 
 
 ### `mu optimize`
 
-Runs: `apt update && apt autoremove`, `journalctl --vacuum-size=500M`, and icon/font/MIME cache refresh. Steps can be skipped per-run (`--skip=apt`) or permanently via config.
+Runs: `apt-get update`, APT policy `autoremove --purge`, `journalctl --vacuum-size=500M`, and icon/font/MIME cache refresh. Independent steps continue after failure, show the failed state, and return nonzero after completion. Steps can be skipped per-run (`--skip=apt`) or permanently via config.
 
 ### `mu status`
 
-Live-updating dashboard reading directly from `/proc`. Shows CPU%, RAM, disk per mount, network I/O rates, and a health score (0–100 weighted: CPU 30%, RAM 30%, disk 30%, swap 10%). Outputs JSON when stdout is not a TTY.
+Live-updating dashboard reading directly from `/proc` and mountinfo. Shows CPU%, RAM, real mounted filesystems, network I/O rates, and a root-filesystem-based health score. Unavailable metrics are reported in `scan_errors`. Outputs JSON when stdout is not a TTY.
 
 ---
 
 ## Safety
 
-- **Trash, not delete.** User-owned files go through `gio trash` (falls back to XDG trash spec). `rm` is never used on user data.
-- **Protected paths.** `/`, `/boot`, `/etc`, `/usr`, `/lib`, `/bin`, `/sbin`, `/proc`, `/sys`, `/dev`, `/run` are blocked in code. The running kernel is never touched.
+- **Trash, not delete.** User-owned files go through `gio trash` or a filesystem-aware, transactional FreeDesktop trash fallback.
+- **Protected paths.** Cleanup roots must be absolute and cannot be `/`, home, an ancestor of home, or a protected system path. Cleanup candidates must remain inside their root and cannot be top-level symlinks.
+- **APT policy.** `apt-get -s autoremove --purge` supplies the complete preview candidate set. `mu` never constructs a kernel purge list from package-name matching.
+- **Fail closed.** Relative XDG paths are ignored. Malformed protection configuration blocks destructive commands, including dry-run.
 - **Dry-run everywhere.** Every destructive command has `--dry-run`. No surprises.
 - **Audit log.** All operations log to `~/.local/share/mu/operations.log` (10 MB, 1 rotation). Disable: `MU_NO_OPLOG=1`.
 
@@ -120,7 +122,7 @@ steps = ["apt"]   # always skip apt in optimize
 
 - Ubuntu 22.04 / 24.04 LTS (primary). Debian 12+, Pop!\_OS, Mint: compatible, not officially tested.
 - Runtime: `gio` (from `glib2`), `dpkg-query`, `journalctl`. `snap` and `docker` are optional.
-- Build: Go 1.24.2+.
+- Build: Go 1.25.8+.
 
 ---
 

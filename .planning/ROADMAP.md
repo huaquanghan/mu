@@ -1,5 +1,7 @@
 # ROADMAP: mu — Deep Clean & Optimize Tool for Ubuntu
 
+> Historical planning record. Current behavior and safety rules live in `docs/product/README.md` and `docs/stories/MU-001-safety-hardening/`.
+
 ## Planning Basis
 - source spec: `.planning/SPEC.md`
 - planning mode: `full`

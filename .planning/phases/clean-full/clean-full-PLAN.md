@@ -1,5 +1,7 @@
 # Plan: clean-full
 
+> Historical plan. Its kernel-name filtering approach is superseded by APT-policy autoremove in MU-001 and must not be reimplemented.
+
 ## Goal
 Implement all `mu clean` scan categories, wire progress bars, enforce opt-in for browser caches, and use `SafeDelete` for user-owned files.
 

@@ -26,7 +26,7 @@ It combines the power of `CleanMyMac` + `AppCleaner` + `DaisyDisk` + `htop` + `n
 ## 2. Problem Statement
 
 Ubuntu users lack a **unified, safe, modern CLI tool** for:
-- Reclaiming gigabytes from cache, logs, snap, apt, journald, old kernels, etc.
+- Reclaiming gigabytes from cache, logs, Snap, APT-policy autoremove, and journald.
 - Completely removing apps + all their config, cache, and service remnants.
 - Optimizing system (vacuum journal, autoremove, refresh caches).
 - Visual disk usage explorer.
@@ -66,7 +66,7 @@ Existing tools are fragmented (`bleachbit`, `stacer`, `ubuntu-cleaner`, manual `
 | Command          | Description                                      | Priority | Acceptance Criteria |
 |------------------|--------------------------------------------------|----------|---------------------|
 | `mu`             | Interactive main menu                            | P0       | Beautiful TUI, Vim/Arrow keys, categories |
-| `mu clean`       | Deep cleanup (caches, logs, apt, snap, journal, old kernels, thumbnails, etc.) | P0 | Shows size before/after, --dry-run, progress bar |
+| `mu clean`       | Deep cleanup (caches, logs, APT policy, Snap, journal, thumbnails, etc.) | P0 | Shows size before/after, --dry-run, progress bar |
 | `mu uninstall`   | Smart app removal + full remnant cleanup         | P0 | Select multiple apps, shows size, cleans ~/.config, ~/.local, /var/lib, systemd units |
 | `mu optimize`    | System refresh (apt update, autoremove, journal vacuum, icon cache, etc.) | P0 | Whitelist support, --dry-run |
 | `mu status`      | Live dashboard (CPU, RAM, Disk, Network, Health score) | P0 | Real-time, JSON output when piped |
@@ -235,7 +235,7 @@ cd mu && make install
 - `/var/cache/apt/archives/*.deb`
 - `journalctl --vacuum-time=30d` (configurable)
 - `/var/log/journal/*`
-- Old kernels: `dpkg -l | grep linux-image | awk '$3 ~ /-generic/ && $3 !~ /$(uname -r)/'`
+- Autoremove candidates: parse `apt-get -s autoremove --purge`; never derive a kernel purge list from package names.
 - `~/.local/share/Trash`
 - `~/.thumbnails` / `~/.cache/thumbnails`
 - Snap: `snap list --all | awk '/disabled/{print $1, $3}'` → remove disabled revisions

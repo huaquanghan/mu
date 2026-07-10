@@ -27,7 +27,7 @@ Build `mu` (Mole Ubuntu) — a single Go binary CLI that gives Ubuntu/Debian use
 
 ### Commands (MVP v0.1.0)
 6. `mu` (no args): Launch interactive TUI main menu with arrow/Vim navigation, showing all sub-commands and system health snapshot.
-7. `mu clean [--dry-run]`: Scan and optionally remove: user cache (`~/.cache`), APT cache (`/var/cache/apt/archives`), snap disabled revisions, journal logs (`journalctl --vacuum-time=30d`), old kernels/headers, thumbnails, browser caches (Chrome/Firefox/VSCode), Docker build cache (if Docker present). Show size-per-category before/after.
+7. `mu clean [--dry-run]`: Scan and optionally remove: user cache (`~/.cache`), APT cache (`/var/cache/apt/archives`), Snap disabled revisions, journal logs (`journalctl --vacuum-time=30d`), APT-policy autoremove candidates, thumbnails, browser caches (Chrome/Firefox/VSCode), Docker build cache (if Docker present). Show size-per-category before/after.
 8. `mu uninstall [--dry-run]`: Interactive multi-select list of installed packages (from `dpkg -l` + `snap list`). After selection, show which dirs will be removed (`~/.config/<app>`, `~/.local/share/<app>`, `~/.cache/<app>`), then execute `apt purge` + remnant cleanup.
 9. `mu optimize [--dry-run]`: Run: `apt update && apt autoremove`, `journalctl --vacuum-size=500M`, update icon/font/mime caches. Whitelist support for skipping specific steps.
 10. `mu status`: Live dashboard showing CPU %, RAM %, disk usage, network I/O, and a computed "Health Score". Outputs structured JSON when stdout is not a TTY (piped).
@@ -71,7 +71,7 @@ Build `mu` (Mole Ubuntu) — a single Go binary CLI that gives Ubuntu/Debian use
 ---
 
 ## Constraints
-- **Go version:** 1.24.2+ (required by `github.com/charmbracelet/bubbles v1.0.0`; `GOTOOLCHAIN=auto` will auto-download on systems with older Go installations)
+- **Go version:** 1.25.8+ (required by current module / Charm stack pins; `GOTOOLCHAIN=auto` will auto-download on systems with older Go installations)
 - **External runtime deps:** none required; `fd` and `ncdu` are optional enhancements
 - **Privileges:** Most operations run as user; APT/kernel ops require `sudo` with explicit prompt — never auto-escalate silently
 - **Binary size:** < 25 MB stripped
@@ -88,7 +88,7 @@ Build `mu` (Mole Ubuntu) — a single Go binary CLI that gives Ubuntu/Debian use
 - `mu uninstall` shows a selectable package list; selecting a package and confirming calls `apt purge` and removes known remnant dirs
 - `mu optimize --dry-run` lists planned actions without executing
 - All commands complete without panic on a clean Ubuntu 24.04 VM
-- `make build` succeeds from a fresh `git clone` with Go 1.24.2+ installed
+- `make build` succeeds from a fresh `git clone` with Go 1.25.8+ installed
 - Binary size `< 25 MB` verified with `ls -lh ./bin/mu`
 
 ---
@@ -97,7 +97,7 @@ Build `mu` (Mole Ubuntu) — a single Go binary CLI that gives Ubuntu/Debian use
 
 | Decision | Chosen | Rejected | Reason for rejection |
 |----------|--------|----------|---------------------|
-| Implementation language | Go 1.24.2+ | Shell-script only | Shell can't produce a single TUI binary; lacks type safety for path operations |
+| Implementation language | Go 1.25.8+ | Shell-script only | Shell can't produce a single TUI binary; lacks type safety for path operations |
 | Runtime language | Go | Python | Python requires interpreter on target; Go produces a zero-dependency static binary |
 | TUI framework | Bubbletea + Lipgloss | tview | tview is widget-based but limited styling; Bubbletea Elm architecture scales better; Charm ecosystem gives Bubbles components (lists, progress, spinner) for free |
 | TUI framework | Bubbletea + Lipgloss | No TUI (plain Cobra only) | PRD's core differentiator is UX; a plain Cobra tool would look no different from existing fragmented tools |
@@ -107,10 +107,10 @@ Build `mu` (Mole Ubuntu) — a single Go binary CLI that gives Ubuntu/Debian use
 ---
 
 ## Dependencies / Assumptions
-- Go 1.24.2+ available in build environment
+- Go 1.25.8+ available in build environment
 - Target machines have `apt`, `snap` (optional), `journalctl`, `gio` (from glib2)
 - Docker cleanup only runs if Docker daemon is present (checked at runtime)
-- Old kernel detection uses `uname -r` to protect running kernel
+- APT simulated autoremove policy supplies the complete candidate set
 - `sudo` available for APT and kernel operations; `mu` never stores credentials
 
 ---
