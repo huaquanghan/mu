@@ -37,23 +37,42 @@ func allSteps() []step {
 	}
 }
 
-// Run executes (or previews) the optimization steps.
-func Run(opts Options) error {
-	wl, err := utils.LoadWhitelist()
-	if err != nil && opts.Debug {
-		fmt.Fprintf(os.Stderr, "warn: whitelist: %v\n", err)
+// StepIDs returns the IDs of all built-in optimize steps in order.
+func StepIDs() []string {
+	steps := allSteps()
+	ids := make([]string, len(steps))
+	for i, s := range steps {
+		ids[i] = s.id
+	}
+	return ids
+}
+
+// RunStep runs a single optimize step by id (apt, journal, caches).
+// It returns whether the step was skipped by policy and an error for an unknown or failed step.
+func RunStep(id string, opts Options, out io.Writer) (skipped bool, err error) {
+	if out == nil {
+		out = io.Discard
 	}
 
-	// Merge whitelist skip list with CLI --skip flag; CLI takes precedence for additions.
-	skip := opts.Skip
-	if wl != nil {
-		for _, s := range wl.OptimizeSkip.Steps {
-			if !slices.Contains(skip, s) {
-				skip = append(skip, s)
-			}
+	var target step
+	for _, s := range allSteps() {
+		if s.id == id {
+			target = s
+			break
 		}
 	}
+	if target.id == "" {
+		return false, fmt.Errorf("unknown optimize step: %s", id)
+	}
+	if slices.Contains(resolveSkip(opts), id) {
+		return true, nil
+	}
+	return false, target.run(out)
+}
 
+// Run executes (or previews) the optimization steps.
+func Run(opts Options) error {
+	skip := resolveSkip(opts)
 	steps := allSteps()
 
 	fmt.Print("\n🔧 Optimize plan:\n\n")
@@ -94,6 +113,24 @@ func Run(opts Options) error {
 
 	fmt.Println("\n✅  Optimization complete.")
 	return nil
+}
+
+func resolveSkip(opts Options) []string {
+	wl, err := utils.LoadWhitelist()
+	if err != nil && opts.Debug {
+		fmt.Fprintf(os.Stderr, "warn: whitelist: %v\n", err)
+	}
+
+	// Merge whitelist skip list with CLI --skip flag; CLI takes precedence for additions.
+	skip := append([]string(nil), opts.Skip...)
+	if wl != nil {
+		for _, s := range wl.OptimizeSkip.Steps {
+			if !slices.Contains(skip, s) {
+				skip = append(skip, s)
+			}
+		}
+	}
+	return skip
 }
 
 // — Bubbletea model for spinner progress —

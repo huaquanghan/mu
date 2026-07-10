@@ -14,6 +14,8 @@ mu uninstall --dry-run  # shows what would be removed
 
 `mu status` is read-only and never modifies the system.
 
+`mu audit --report` and `mu audit --json` are read-only. Interactive `mu audit` apply uses the same trash, whitelist, opt-in, and confirmation rules as `mu clean` / `mu optimize` (confirm defaults to NO).
+
 ### Confirmation prompt
 
 Commands that delete files require explicit confirmation:

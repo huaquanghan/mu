@@ -159,7 +159,7 @@ func journalLogsTarget() CleanTarget {
 		ID:    "journal-logs",
 		Label: "Journal Logs",
 		Scan: func() int64 {
-			return journalSize()
+			return JournalSize()
 		},
 		Execute: func(dryRun bool) error {
 			if dryRun {
@@ -178,8 +178,9 @@ func journalLogsTarget() CleanTarget {
 	}
 }
 
-// journalSize parses journalctl --disk-usage to get journal size in bytes.
-func journalSize() int64 {
+// JournalSize parses journalctl --disk-usage to get journal size in bytes.
+// Returns 0 if journalctl is unavailable or output cannot be parsed.
+func JournalSize() int64 {
 	out, err := exec.Command("journalctl", "--disk-usage").Output()
 	if err != nil {
 		return 0
@@ -196,4 +197,14 @@ func journalSize() int64 {
 		return int64(val * 1024)
 	}
 	return 0
+}
+
+// TargetByID returns the clean target with the given ID, if present.
+func TargetByID(id string) (CleanTarget, bool) {
+	for _, t := range AllTargets() {
+		if t.ID == id {
+			return t, true
+		}
+	}
+	return CleanTarget{}, false
 }

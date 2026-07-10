@@ -56,6 +56,9 @@ smoke: build
 	@echo "=== mu optimize --dry-run ==="
 	@$(BUILD_DIR)/$(BINARY) optimize --dry-run
 	@echo ""
+	@echo "=== mu audit --report ==="
+	@$(BUILD_DIR)/$(BINARY) audit --report || true
+	@echo ""
 	@echo "=== mu status (JSON mode) ==="
 	@$(BUILD_DIR)/$(BINARY) status | python3 -m json.tool --no-ensure-ascii | head -20
 	@echo ""

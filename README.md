@@ -33,6 +33,9 @@ make install-local  # → ~/.local/bin/mu (no sudo)
 
 ```
 mu                              # interactive TUI menu
+mu audit                        # diagnose → select → apply → re-score
+mu audit --report               # human report (exit 1=warning, 2=critical)
+mu audit --json                 # JSON findings for scripts
 mu clean --dry-run              # preview what would be cleaned
 mu clean                        # clean with YES/NO confirmation
 mu clean --include=browser-cache,docker
@@ -46,6 +49,17 @@ mu status | jq '.health'        # JSON when piped
 ### `mu` (TUI menu)
 
 Opens an interactive menu with a live system snapshot (CPU, RAM, disk). Select any command with arrow keys or `j/k`. Pressing `q` from any sub-screen returns to the menu.
+
+### `mu audit`
+
+Diagnoses cleanup opportunities and health pressure, then guides you through fixes:
+
+1. **Scan** clean categories + disk/RAM/health + journal + apt autoremove signals
+2. **Select** findings (opt-in categories like browser/docker stay off unless `--include`)
+3. **Confirm** (default NO) → **apply** via the same `clean` / `optimize` paths
+4. **Re-score** health and reclaimable space
+
+`--report` / `--json` are read-only. `--dry-run` previews apply without changes. Exit codes for `--report`/`--json`: `0` ok/info, `1` warning, `2` critical.
 
 ### `mu clean`
 

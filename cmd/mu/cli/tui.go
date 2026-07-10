@@ -33,6 +33,7 @@ type menuItem struct {
 }
 
 var menuItems = []menuItem{
+	{"Audit", "Diagnose cleanup issues and apply recommended fixes", "audit"},
 	{"Clean", "Free disk space (cache, apt, snap, journal, kernels)", "clean"},
 	{"Uninstall", "Remove apps and all their remnants", "uninstall"},
 	{"Optimize", "Run system maintenance tasks", "optimize"},
@@ -41,8 +42,8 @@ var menuItems = []menuItem{
 }
 
 type healthMsg struct {
-	cpu     float64
-	memUsed uint64
+	cpu      float64
+	memUsed  uint64
 	memTotal uint64
 	diskFree float64
 }
@@ -153,6 +154,8 @@ func runTUI() error {
 		}
 		var runErr error
 		switch final.chosen {
+		case "audit":
+			runErr = runAudit()
 		case "clean":
 			runErr = runClean()
 		case "uninstall":

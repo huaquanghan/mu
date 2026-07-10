@@ -33,6 +33,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable verbose debug logging")
 
+	rootCmd.AddCommand(auditCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(uninstallCmd)
 	rootCmd.AddCommand(optimizeCmd)
