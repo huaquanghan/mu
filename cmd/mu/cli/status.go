@@ -10,12 +10,12 @@ var statusJSON bool
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Live system dashboard: CPU, RAM, disk, network, health score",
-	Long: `Displays a real-time system health dashboard.
+	Long: `Displays a real-time system health dashboard with visual metric bars.
 
-  • CPU usage (per-core and aggregate)
+  • Aggregate CPU usage
   • RAM and swap usage
-  • Disk usage for mounted filesystems
-  • Network I/O (bytes in/out)
+  • Disk usage for mounted filesystems (used % bars)
+  • Network I/O rates (active interfaces)
   • Computed health score (0-100)
 
 Use --json to output a structured JSON snapshot and exit.

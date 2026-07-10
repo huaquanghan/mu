@@ -2,12 +2,9 @@ package status
 
 import (
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type tickMsg time.Time
@@ -26,6 +23,7 @@ type Snapshot struct {
 type Model struct {
 	prevCPU    CPUSample
 	cpu        float64
+	cpuReady   bool
 	mem        MemStats
 	disks      []DiskStat
 	prevNets   map[string]NetStat
@@ -33,10 +31,13 @@ type Model struct {
 	health     int
 	prevTime   time.Time
 	scanErrors []string
+	width      int
 }
 
 // NewModel returns a fresh Model.
-func NewModel() Model { return Model{} }
+func NewModel() Model {
+	return Model{width: defaultTerm}
+}
 
 // Init schedules the first tick.
 func (m Model) Init() tea.Cmd {
@@ -46,6 +47,10 @@ func (m Model) Init() tea.Cmd {
 // Update handles messages.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		return m, nil
+
 	case tickMsg:
 		m.scanErrors = nil
 		cpuAvailable := false
@@ -56,6 +61,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.prevCPU != (CPUSample{}) {
 				m.cpu = CPUPercent(m.prevCPU, curr)
 				cpuAvailable = true
+				m.cpuReady = true
 			}
 			m.prevCPU = curr
 		} else {
@@ -106,53 +112,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the dashboard.
 func (m Model) View() string {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0097A7")).Render("  mu status")
-
-	cpuLine := fmt.Sprintf("  CPU:    %.1f%%", m.cpu)
-
-	usedKB := m.mem.TotalKB - m.mem.AvailableKB
-	ramLine := fmt.Sprintf("  RAM:    %s / %s", humanKB(usedKB), humanKB(m.mem.TotalKB))
-
-	var diskLines []string
-	for _, d := range m.disks {
-		freePercent := 0.0
-		if d.TotalBytes > 0 {
-			freePercent = float64(d.FreeBytes) / float64(d.TotalBytes) * 100
-		}
-		diskLines = append(diskLines, fmt.Sprintf("  Disk %-15s %s free (%.0f%%)",
-			d.Mount, humanBytes(d.FreeBytes), freePercent))
-	}
-
-	var netLines []string
-	for iface, rate := range m.netRates {
-		if rate.RxBytesPerSec == 0 && rate.TxBytesPerSec == 0 {
-			continue
-		}
-		netLines = append(netLines, fmt.Sprintf("  Net  %-10s ↑%s/s ↓%s/s",
-			iface, humanBytes(rate.TxBytesPerSec), humanBytes(rate.RxBytesPerSec)))
-	}
-	sort.Strings(netLines)
-
-	healthColor := "#22C55E" // green
-	if m.health < 60 {
-		healthColor = "#F59E0B" // amber
-	}
-	if m.health < 30 {
-		healthColor = "#EF4444" // red
-	}
-	badge := lipgloss.NewStyle().Foreground(lipgloss.Color(healthColor)).Bold(true).
-		Render(fmt.Sprintf("  Health: %d/100", m.health))
-
-	footer := lipgloss.NewStyle().Padding(0, 2).Render("q to quit")
-
-	parts := []string{"", "", title, "", cpuLine, ramLine}
-	parts = append(parts, diskLines...)
-	parts = append(parts, netLines...)
-	for _, scanErr := range m.scanErrors {
-		parts = append(parts, "  Unavailable: "+scanErr)
-	}
-	parts = append(parts, "", "", badge, "", "", "", footer)
-	return strings.Join(parts, "\n")
+	return renderDashboard(m)
 }
 
 func humanKB(kb uint64) string {
