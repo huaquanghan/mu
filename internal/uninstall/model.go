@@ -47,7 +47,7 @@ type pkgItem struct {
 }
 
 var (
-	cyan    = lipgloss.Color("#0097A7")
+	cyan      = lipgloss.Color("#0097A7")
 	gray      = lipgloss.Color("#6B7280")
 	checkMark = lipgloss.NewStyle().Foreground(cyan).Render("✓")
 )
@@ -107,7 +107,7 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loadedMsg:
 		items := make([]pkgItem, len(msg.pkgs))
 		for i, p := range msg.pkgs {
-			items[i] = pkgItem{pkg: p, selected: m.selected[p.Name]}
+			items[i] = pkgItem{pkg: p, selected: m.selected[p.Key()]}
 		}
 		m.allItems = items
 		m.loaded = true
@@ -161,11 +161,11 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case " ":
 			if m.cursor >= 0 && m.cursor < len(m.items) {
-				name := m.items[m.cursor].pkg.Name
-				m.selected[name] = !m.selected[name]
+				key := m.items[m.cursor].pkg.Key()
+				m.selected[key] = !m.selected[key]
 				for i := range m.allItems {
-					if m.allItems[i].pkg.Name == name {
-						m.allItems[i].selected = m.selected[name]
+					if m.allItems[i].pkg.Key() == key {
+						m.allItems[i].selected = m.selected[key]
 						break
 					}
 				}
@@ -272,7 +272,7 @@ func (m uninstallModel) View() string {
 				sourceStr := lipgloss.NewStyle().Foreground(gray).Render("[" + it.pkg.Source + "]")
 				sizeStr := lipgloss.NewStyle().Faint(true).Render(size)
 				check := "  "
-				if m.selected[it.pkg.Name] {
+				if m.selected[it.pkg.Key()] {
 					check = checkMark + " "
 				}
 				line := fmt.Sprintf("%s%s %s %s  %s", check, it.pkg.Name, sourceStr, sizeStr,
@@ -298,12 +298,12 @@ func (m uninstallModel) View() string {
 	case phaseConfirm:
 		var sb strings.Builder
 		sb.WriteString("\n\n" + lipgloss.NewStyle().Bold(true).Render("  Will remove:\n"))
-		for name, sel := range m.selected {
+		for key, sel := range m.selected {
 			if !sel {
 				continue
 			}
 			for _, it := range m.allItems {
-				if it.pkg.Name != name {
+				if it.pkg.Key() != key {
 					continue
 				}
 				sb.WriteString(fmt.Sprintf("    • %s (%s)\n", it.pkg.Name, it.pkg.Source))
@@ -328,7 +328,7 @@ func (m uninstallModel) View() string {
 func (m uninstallModel) selectedPackages() []Package {
 	var result []Package
 	for _, it := range m.allItems {
-		if m.selected[it.pkg.Name] {
+		if m.selected[it.pkg.Key()] {
 			result = append(result, it.pkg)
 		}
 	}

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -24,9 +26,21 @@ All destructive commands support --dry-run for safe previewing.`,
 	},
 }
 
+func init() {
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
+}
+
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		code := 1
+		var exitErr interface{ ExitCode() int }
+		if errors.As(err, &exitErr) {
+			code = exitErr.ExitCode()
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(code)
 	}
 }
 

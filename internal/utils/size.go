@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -9,9 +10,11 @@ import (
 
 func DirSize(path string) (int64, error) {
 	var total int64
+	var walkErrors []error
 	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip unreadable paths
+			walkErrors = append(walkErrors, err)
+			return nil
 		}
 		if !d.IsDir() {
 			info, err := d.Info()
@@ -21,7 +24,10 @@ func DirSize(path string) (int64, error) {
 		}
 		return nil
 	})
-	return total, err
+	if err != nil {
+		walkErrors = append(walkErrors, err)
+	}
+	return total, errors.Join(walkErrors...)
 }
 
 func HumanSize(bytes int64) string {

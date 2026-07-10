@@ -1,114 +1,129 @@
 package clean
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
-// ParseKernelPackages parses dpkg-query output and returns (packages, totalBytes).
-// It excludes any package containing runningKernel in its name.
-func ParseKernelPackages(dpkgOutput, runningKernel string) ([]string, int64) {
-	var pkgs []string
-	var total int64
-	lines := strings.Split(dpkgOutput, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
+var freedSpacePattern = regexp.MustCompile(`(?i)after this operation,\s*([0-9]+(?:\.[0-9]+)?)\s*([kmgt]?b)\s+of additional disk space will be used|(?i)([0-9]+(?:\.[0-9]+)?)\s*([kmgt]?b)\s+disk space will be freed`)
+
+// ParseAutoremoveSimulation extracts APT's complete removal candidate set and
+// estimated freed bytes from apt-get -s autoremove --purge output.
+func ParseAutoremoveSimulation(output string) ([]string, int64) {
+	seen := map[string]bool{}
+	var packages []string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(strings.TrimSpace(line))
+		if len(fields) < 2 || (fields[0] != "Remv" && fields[0] != "Purg") {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 2)
-		if len(parts) != 2 {
+		if !seen[fields[1]] {
+			seen[fields[1]] = true
+			packages = append(packages, fields[1])
+		}
+	}
+
+	var bytes int64
+	for _, line := range strings.Split(output, "\n") {
+		match := freedSpacePattern.FindStringSubmatch(strings.TrimSpace(line))
+		if len(match) == 0 {
 			continue
 		}
-		pkg := strings.TrimSpace(parts[0])
-		sizeStr := strings.TrimSpace(parts[1])
-		if pkg == "" || sizeStr == "" {
+		value, unit := match[3], match[4]
+		if value == "" {
+			// "additional disk space will be used" is not reclaimable.
 			continue
 		}
-		// Never include running kernel
-		if strings.Contains(pkg, runningKernel) {
-			continue
-		}
-		sizeKB, err := strconv.ParseInt(sizeStr, 10, 64)
+		bytes = parseAPTSize(value, unit)
+	}
+	return packages, bytes
+}
+
+func parseAPTSize(value, unit string) int64 {
+	number, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return 0
+	}
+	multiplier := float64(1)
+	switch strings.ToUpper(unit) {
+	case "KB":
+		multiplier = 1000
+	case "MB":
+		multiplier = 1000 * 1000
+	case "GB":
+		multiplier = 1000 * 1000 * 1000
+	case "TB":
+		multiplier = 1000 * 1000 * 1000 * 1000
+	}
+	return int64(number * multiplier)
+}
+
+func simulateAutoremove(ctx context.Context) ([]string, int64, error) {
+	result, err := cleanRunner.Run(ctx, "apt-get", "-s", "-o", "Debug::NoLocking=1", "autoremove", "--purge")
+	if err != nil {
+		return nil, 0, fmt.Errorf("apt-get autoremove preview: %w: %s", err, strings.TrimSpace(string(result.Stderr)))
+	}
+	packages, bytes := ParseAutoremoveSimulation(string(result.Stdout))
+	return packages, bytes, nil
+}
+
+// RunAutoremove executes APT's own autoremove policy. Active package
+// transactions intentionally have no short timeout.
+func RunAutoremove(ctx context.Context, dryRun bool) error {
+	if dryRun {
+		previewCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		packages, _, err := simulateAutoremove(previewCtx)
 		if err != nil {
-			continue
+			return err
 		}
-		pkgs = append(pkgs, pkg)
-		total += sizeKB * 1024
+		utils.LogOutcome("apt-autoremove", strings.Join(packages, ","), "dry-run")
+		return nil
 	}
-	return pkgs, total
-}
-
-func runningKernel() string {
-	out, err := exec.Command("uname", "-r").Output()
+	result, err := cleanRunner.Run(ctx, "sudo", "apt-get", "autoremove", "--purge", "-y")
 	if err != nil {
-		return ""
+		utils.LogOutcome("apt-autoremove", "apt policy", "failure")
+		return fmt.Errorf("apt-get autoremove: %w: %s", err, strings.TrimSpace(string(result.Stderr)))
 	}
-	return strings.TrimSpace(string(out))
+	utils.LogOutcome("apt-autoremove", "apt policy", "success")
+	return nil
 }
 
-func dpkgKernelOutput() (string, error) {
-	cmd := exec.Command("dpkg-query", "--show",
-		"--showformat=${Package}\t${Installed-Size}\n",
-		"linux-image-*", "linux-headers-*")
-	out, err := cmd.Output()
-	if err != nil {
-		// dpkg-query exits non-zero if no packages match; treat output as valid
-		if len(out) > 0 {
-			return string(out), nil
-		}
-		return "", err
-	}
-	return string(out), nil
-}
-
-// kernelsTarget returns a CleanTarget for old kernel packages.
+// kernelsTarget keeps the stable target ID for CLI compatibility while using
+// APT policy for the complete autoremove candidate set.
 func kernelsTarget() CleanTarget {
+	var once sync.Once
+	var packages []string
+	var bytes int64
+	var scanErr error
+	load := func() {
+		once.Do(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			packages, bytes, scanErr = simulateAutoremove(ctx)
+		})
+	}
 	return CleanTarget{
 		ID:           "kernels",
-		Label:        "Old Kernel Packages",
+		Label:        "APT Autoremove Candidates",
 		RequiresSudo: true,
-		Scan: func() int64 {
-			kernel := runningKernel()
-			if kernel == "" {
-				return 0
-			}
-			out, err := dpkgKernelOutput()
-			if err != nil {
-				return 0
-			}
-			_, total := ParseKernelPackages(out, kernel)
-			return total
+		Scan: func() (int64, error) {
+			load()
+			return bytes, scanErr
+		},
+		Preview: func() ([]string, error) {
+			load()
+			return append([]string(nil), packages...), scanErr
 		},
 		Execute: func(dryRun bool) error {
-			kernel := runningKernel()
-			if kernel == "" {
-				return fmt.Errorf("could not determine running kernel")
-			}
-			out, err := dpkgKernelOutput()
-			if err != nil {
-				return nil // no old kernels
-			}
-			pkgs, _ := ParseKernelPackages(out, kernel)
-			if len(pkgs) == 0 {
-				return nil
-			}
-			for _, p := range pkgs {
-				utils.LogOp("purge-kernel", p)
-			}
-			if dryRun {
-				return nil
-			}
-			args := append([]string{"apt", "purge", "-y"}, pkgs...)
-			cmd := exec.Command("sudo", args...)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			return cmd.Run()
+			return RunAutoremove(context.Background(), dryRun)
 		},
 	}
 }

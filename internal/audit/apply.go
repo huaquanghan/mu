@@ -32,10 +32,12 @@ func Apply(selected []Finding, dryRun bool, debug bool, out io.Writer) []ApplyRe
 
 	for _, f := range selected {
 		if !f.Selectable || f.Action == "" || f.Action == "none" {
+			utils.LogOutcome("audit", f.Action, "skipped")
 			results = append(results, ApplyResult{FindingID: f.ID, Action: f.Action, Skipped: true})
 			continue
 		}
 		if seen[f.Action] {
+			utils.LogOutcome("audit", f.Action, "skipped")
 			results = append(results, ApplyResult{FindingID: f.ID, Action: f.Action, Skipped: true})
 			continue
 		}
@@ -59,13 +61,20 @@ func Apply(selected []Finding, dryRun bool, debug bool, out io.Writer) []ApplyRe
 
 		if err != nil {
 			fmt.Fprintf(out, "  warn: %v\n", err)
+			utils.LogOutcome("audit", f.Action, "failure")
 			if debug {
 				fmt.Fprintf(os.Stderr, "audit apply %s: %v\n", f.Action, err)
 			}
 		} else if skipped {
 			fmt.Fprintln(out, "  ⏭️ Skipped by optimize policy")
+			utils.LogOutcome("audit", f.Action, "skipped")
 		} else {
 			fmt.Fprintln(out, "  ✅ Done")
+			outcome := "success"
+			if dryRun {
+				outcome = "dry-run"
+			}
+			utils.LogOutcome("audit", f.Action, outcome)
 		}
 		results = append(results, ApplyResult{FindingID: f.ID, Action: f.Action, Err: err, Skipped: skipped})
 	}
@@ -81,17 +90,11 @@ func applyClean(targetID string, dryRun bool) error {
 	if err := t.Execute(dryRun); err != nil {
 		return err
 	}
-	if dryRun {
-		utils.LogOp("audit-dry-run", "clean:"+targetID)
-	} else {
-		utils.LogOp("audit", "clean:"+targetID)
-	}
 	return nil
 }
 
 func applyOptimize(stepID string, dryRun bool, debug bool, out io.Writer) (bool, error) {
 	if dryRun {
-		utils.LogOp("audit-dry-run", "optimize:"+stepID)
 		fmt.Fprintf(out, "  [dry-run] would run optimize step %s\n", stepID)
 		return false, nil
 	}
@@ -106,7 +109,6 @@ func applyOptimize(stepID string, dryRun bool, debug bool, out io.Writer) (bool,
 	if skipped {
 		return true, nil
 	}
-	utils.LogOp("audit", "optimize:"+stepID)
 	return false, nil
 }
 

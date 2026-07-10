@@ -1,12 +1,16 @@
 package uninstall
 
 import (
+	"context"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/huaquanghan/mu/internal/command"
 )
+
+var uninstallRunner = command.Runner(command.ExecRunner{})
 
 // Package represents an installed package and its disk footprint.
 type Package struct {
@@ -18,14 +22,16 @@ type Package struct {
 	RemnantsFound []string
 }
 
+func (p Package) Key() string { return p.Source + ":" + p.Name }
+
 // DiscoverAPT returns installed APT packages with size info.
 func DiscoverAPT() ([]Package, error) {
-	out, err := exec.Command("dpkg-query", "--show",
-		"--showformat=${Status}\t${Installed-Size}\t${Package}\t${Version}\n").Output()
+	result, err := uninstallRunner.Run(context.Background(), "dpkg-query", "--show",
+		"--showformat=${Status}\t${Installed-Size}\t${Package}\t${Version}\n")
 	if err != nil {
 		return nil, err
 	}
-	return parseAPTOutput(string(out)), nil
+	return parseAPTOutput(string(result.Stdout)), nil
 }
 
 // parseAPTOutput parses dpkg-query output.
@@ -53,14 +59,14 @@ func parseAPTOutput(output string) []Package {
 
 // DiscoverSnap returns installed snap packages. Returns empty list if snap not found.
 func DiscoverSnap() ([]Package, error) {
-	if _, err := exec.LookPath("snap"); err != nil {
+	if _, err := uninstallRunner.LookPath("snap"); err != nil {
 		return nil, nil
 	}
-	out, err := exec.Command("snap", "list").Output()
+	result, err := uninstallRunner.Run(context.Background(), "snap", "list")
 	if err != nil {
-		return nil, nil // snap may fail on minimal systems
+		return nil, fmt.Errorf("snap list: %w", err)
 	}
-	return parseSnapOutput(string(out)), nil
+	return parseSnapOutput(string(result.Stdout)), nil
 }
 
 // parseSnapOutput parses `snap list` output (skip header line).
@@ -99,11 +105,11 @@ func populateSnapSizes(pkgs []Package) {
 
 // snapInstalledKB returns the on-disk size of a snap's current revision in KB.
 func snapInstalledKB(name string) int64 {
-	out, err := exec.Command("du", "-sk", fmt.Sprintf("/snap/%s/current", name)).Output()
+	result, err := uninstallRunner.Run(context.Background(), "du", "-sk", fmt.Sprintf("/snap/%s/current", name))
 	if err != nil {
 		return 0
 	}
-	fields := strings.Fields(string(out))
+	fields := strings.Fields(string(result.Stdout))
 	if len(fields) == 0 {
 		return 0
 	}
@@ -118,7 +124,10 @@ func Discover() ([]Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	snap, _ := DiscoverSnap()
+	snap, err := DiscoverSnap()
+	if err != nil {
+		return nil, err
+	}
 	all := append(apt, snap...)
 	sort.Slice(all, func(i, j int) bool { return all[i].Name < all[j].Name })
 	return all, nil

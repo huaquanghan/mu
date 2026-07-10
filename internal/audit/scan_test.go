@@ -141,3 +141,32 @@ func TestBuildReport_reclaimable(t *testing.T) {
 		t.Error("expected recommended commands")
 	}
 }
+
+func TestBuildFindingsDeduplicatesAPTAutoRemoveAction(t *testing.T) {
+	snap := Snapshot{
+		Targets:         []TargetSize{{ID: "kernels", Label: "APT Autoremove Candidates", Bytes: 100}},
+		AptAutoremoveN:  3,
+		Health:          80,
+		DiskFreePctRoot: 50,
+	}
+	findings := BuildFindings(snap, nil)
+	count := 0
+	for _, finding := range findings {
+		if finding.Action == "clean:kernels" || finding.Action == "optimize:apt" {
+			count++
+			if finding.Action != "clean:kernels" {
+				t.Fatalf("non-canonical APT action: %+v", finding)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one APT action, got %d: %+v", count, findings)
+	}
+}
+
+func TestBuildReportCarriesScanErrorsAdditively(t *testing.T) {
+	report := BuildReport(Snapshot{Health: 50, DiskFreePctRoot: 30, ScanErrors: []string{"disk unavailable"}}, nil)
+	if len(report.ScanErrors) != 1 || report.ScanErrors[0] != "disk unavailable" {
+		t.Fatalf("scan errors = %v", report.ScanErrors)
+	}
+}

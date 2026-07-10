@@ -2,6 +2,7 @@ package utils
 
 import (
 	_ "embed"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -47,7 +48,14 @@ func LoadWhitelist() (*Whitelist, error) {
 		return wl, nil
 	}
 	var override Whitelist
-	if _, err := toml.DecodeFile(userCfg, &override); err != nil {
+	metadata, err := toml.DecodeFile(userCfg, &override)
+	if err != nil {
+		return wl, err
+	}
+	if undecoded := metadata.Undecoded(); len(undecoded) > 0 {
+		return wl, fmt.Errorf("unknown configuration key: %s", undecoded[0])
+	}
+	if err := validateWhitelistOverride(&override); err != nil {
 		return wl, err
 	}
 	if len(override.ProtectedPaths.System) > 0 {
@@ -62,22 +70,41 @@ func LoadWhitelist() (*Whitelist, error) {
 	return wl, nil
 }
 
+func validateWhitelistOverride(override *Whitelist) error {
+	for _, path := range override.ProtectedPaths.System {
+		if !filepath.IsAbs(path) {
+			return fmt.Errorf("protected path must be absolute: %q", path)
+		}
+	}
+	for _, pattern := range override.CacheSkip.Dirs {
+		pattern = strings.TrimSpace(filepath.ToSlash(pattern))
+		if pattern == "" || filepath.IsAbs(pattern) || pattern == ".." || strings.HasPrefix(pattern, "../") {
+			return fmt.Errorf("cache_skip pattern must stay relative to the cache root: %q", pattern)
+		}
+		if _, err := filepath.Match(pattern, pattern); err != nil {
+			return fmt.Errorf("invalid cache_skip pattern %q: %w", pattern, err)
+		}
+	}
+	return nil
+}
+
 var (
 	wlOnce   sync.Once
 	wlCached *Whitelist
+	wlErr    error
 )
 
 // getWhitelist returns a process-wide cached whitelist (defaults + user config).
-func getWhitelist() *Whitelist {
+func getWhitelist() (*Whitelist, error) {
 	wlOnce.Do(func() {
 		wl, err := LoadWhitelist()
-		if err != nil || wl == nil {
-			wlCached = defaultWhitelist()
+		if err != nil {
+			wlErr = err
 			return
 		}
 		wlCached = wl
 	})
-	return wlCached
+	return wlCached, wlErr
 }
 
 // ResetWhitelistCacheForTest clears the cached whitelist so tests can inject config.
@@ -85,6 +112,7 @@ func getWhitelist() *Whitelist {
 func ResetWhitelistCacheForTest() {
 	wlOnce = sync.Once{}
 	wlCached = nil
+	wlErr = nil
 }
 
 // IsWhitelisted returns true if path is protected by the system or user whitelist.

@@ -16,6 +16,9 @@ type Options struct {
 
 // Run launches the interactive uninstall TUI.
 func Run(opts Options) error {
+	if _, err := utils.LoadWhitelist(); err != nil {
+		return fmt.Errorf("invalid mu configuration: %w", err)
+	}
 	if err := utils.InitLogger(); err != nil && opts.Debug {
 		fmt.Fprintf(os.Stderr, "warn: could not open log: %v\n", err)
 	}
@@ -39,33 +42,16 @@ func Run(opts Options) error {
 		return nil
 	}
 
-	// Separate by source
-	var aptNames, snapNames []string
-	var allRemnants []string
-	for _, pkg := range pkgs {
-		switch pkg.Source {
-		case "apt":
-			aptNames = append(aptNames, pkg.Name)
-		case "snap":
-			snapNames = append(snapNames, pkg.Name)
-		}
-		allRemnants = append(allRemnants, pkg.RemnantsFound...)
+	installed := make([]Package, 0, len(final.allItems))
+	for _, item := range final.allItems {
+		installed = append(installed, item.pkg)
 	}
-
-	var lastErr error
-	if err := RemoveAPT(aptNames, opts.DryRun); err != nil {
+	results := RemoveSelected(pkgs, installed, opts.DryRun)
+	if err := RemovalErrors(results); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		lastErr = err
-	}
-	if err := RemoveSnap(snapNames, opts.DryRun); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		lastErr = err
-	}
-	if err := RemoveRemnants(allRemnants, opts.DryRun); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		lastErr = err
+		return err
 	}
 
 	fmt.Println("\nUninstall complete.")
-	return lastErr
+	return nil
 }

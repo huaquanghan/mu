@@ -1,8 +1,9 @@
 package clean
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -48,60 +49,63 @@ func parseDisabledSnaps(output string) []snapRevision {
 // snapTarget returns a CleanTarget for disabled snap revisions.
 func snapTarget() CleanTarget {
 	// Check if snap is installed
-	_, snapErr := exec.LookPath("snap")
+	_, snapErr := cleanRunner.LookPath("snap")
 
 	return CleanTarget{
 		ID:           "snap",
 		Label:        "Snap Disabled Revisions",
 		RequiresSudo: true,
-		Scan: func() int64 {
+		Scan: func() (int64, error) {
 			if snapErr != nil {
-				return 0
+				return 0, nil
 			}
-			out, err := exec.Command("snap", "list", "--all").Output()
+			result, err := cleanRunner.Run(context.Background(), "snap", "list", "--all")
 			if err != nil {
-				return 0
+				return 0, fmt.Errorf("snap list: %w", err)
 			}
-			revs := parseDisabledSnaps(string(out))
+			revs := parseDisabledSnaps(string(result.Stdout))
 			var total int64
+			var scanErrors []error
 			for _, r := range revs {
 				snapPath := fmt.Sprintf("/snap/%s/%s", r.name, r.revision)
-				duOut, err := exec.Command("du", "-sb", snapPath).Output()
+				duResult, err := cleanRunner.Run(context.Background(), "du", "-sb", snapPath)
 				if err != nil {
+					scanErrors = append(scanErrors, fmt.Errorf("size %s: %w", snapPath, err))
 					continue
 				}
-				parts := strings.Fields(string(duOut))
+				parts := strings.Fields(string(duResult.Stdout))
 				if len(parts) > 0 {
 					if sz, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
 						total += sz
 					}
 				}
 			}
-			return total
+			return total, errors.Join(scanErrors...)
 		},
 		Execute: func(dryRun bool) error {
 			if snapErr != nil {
 				return nil
 			}
-			out, err := exec.Command("snap", "list", "--all").Output()
+			result, err := cleanRunner.Run(context.Background(), "snap", "list", "--all")
 			if err != nil {
 				return fmt.Errorf("snap list: %w", err)
 			}
-			revs := parseDisabledSnaps(string(out))
+			revs := parseDisabledSnaps(string(result.Stdout))
+			var removeErrors []error
 			for _, r := range revs {
 				target := fmt.Sprintf("snap %s rev %s", r.name, r.revision)
 				if dryRun {
-					utils.LogOp("dry-run", target)
+					utils.LogOutcome("snap-remove", target, "dry-run")
 					continue
 				}
-				cmd := exec.Command("sudo", "snap", "remove", "--revision", r.revision, r.name)
-				if err := cmd.Run(); err != nil {
-					fmt.Printf("  warn: remove snap %s rev %s: %v\n", r.name, r.revision, err)
+				if _, err := cleanRunner.Run(context.Background(), "sudo", "snap", "remove", "--revision", r.revision, r.name); err != nil {
+					utils.LogOutcome("snap-remove", target, "failure")
+					removeErrors = append(removeErrors, fmt.Errorf("remove snap %s rev %s: %w", r.name, r.revision, err))
 					continue
 				}
-				utils.LogOp("snap-remove", target)
+				utils.LogOutcome("snap-remove", target, "success")
 			}
-			return nil
+			return errors.Join(removeErrors...)
 		},
 	}
 }

@@ -1,74 +1,42 @@
 package clean
 
 import (
+	"slices"
 	"testing"
 )
 
-const kernelFixture = `linux-image-6.8.0-57-generic	123456
-linux-image-6.8.0-50-generic	120000
-linux-headers-6.8.0-57-generic	50000
-linux-headers-6.8.0-50-generic	48000
-linux-image-6.5.0-41-generic	115000
+func TestParseAutoremoveSimulationUsesOnlyAPTCandidates(t *testing.T) {
+	fixture := `The following packages will be REMOVED:
+  linux-image-6.8.0-50-generic linux-modules-6.8.0-50-generic
+Remv linux-image-6.8.0-50-generic [6.8.0-50]
+Purg linux-modules-6.8.0-50-generic [6.8.0-50]
+Remv obsolete-lib [1.0]
+Remv obsolete-lib [1.0]
+After this operation, 240 MB disk space will be freed.
 `
-
-func TestParseKernelPackages_excludesRunning(t *testing.T) {
-	running := "6.8.0-57-generic"
-	pkgs, total := ParseKernelPackages(kernelFixture, running)
-
-	// Running kernel packages must be excluded
-	for _, p := range pkgs {
-		if contains(p, running) {
-			t.Errorf("running kernel package included: %s", p)
-		}
+	packages, bytes := ParseAutoremoveSimulation(fixture)
+	want := []string{"linux-image-6.8.0-50-generic", "linux-modules-6.8.0-50-generic", "obsolete-lib"}
+	if !slices.Equal(packages, want) {
+		t.Fatalf("packages = %v, want %v", packages, want)
 	}
-
-	// Should include old packages
-	expected := []string{
-		"linux-image-6.8.0-50-generic",
-		"linux-headers-6.8.0-50-generic",
-		"linux-image-6.5.0-41-generic",
+	if slices.Contains(packages, "linux-generic") {
+		t.Fatal("meta-package not selected by APT must be preserved")
 	}
-	if len(pkgs) != len(expected) {
-		t.Errorf("expected %d packages, got %d: %v", len(expected), len(pkgs), pkgs)
-	}
-
-	// Size: (120000 + 48000 + 115000) * 1024
-	expectedTotal := int64((120000 + 48000 + 115000) * 1024)
-	if total != expectedTotal {
-		t.Errorf("expected total %d, got %d", expectedTotal, total)
+	if bytes != 240_000_000 {
+		t.Fatalf("bytes = %d, want 240000000", bytes)
 	}
 }
 
-func TestParseKernelPackages_emptyOutput(t *testing.T) {
-	pkgs, total := ParseKernelPackages("", "6.8.0-57-generic")
-	if len(pkgs) != 0 {
-		t.Errorf("expected 0 packages, got %d", len(pkgs))
-	}
-	if total != 0 {
-		t.Errorf("expected total 0, got %d", total)
+func TestParseAutoremoveSimulationNoCandidates(t *testing.T) {
+	packages, bytes := ParseAutoremoveSimulation("0 upgraded, 0 newly installed, 0 to remove.\n")
+	if len(packages) != 0 || bytes != 0 {
+		t.Fatalf("got packages=%v bytes=%d", packages, bytes)
 	}
 }
 
-func TestParseKernelPackages_allRunning(t *testing.T) {
-	fixture := "linux-image-6.8.0-57-generic\t100000\nlinux-headers-6.8.0-57-generic\t50000\n"
-	pkgs, total := ParseKernelPackages(fixture, "6.8.0-57-generic")
-	if len(pkgs) != 0 {
-		t.Errorf("expected 0 packages, got %d: %v", len(pkgs), pkgs)
+func TestParseAutoremoveSimulationDoesNotTreatAdditionalUsageAsFreed(t *testing.T) {
+	_, bytes := ParseAutoremoveSimulation("After this operation, 10 MB of additional disk space will be used.\n")
+	if bytes != 0 {
+		t.Fatalf("bytes = %d, want 0", bytes)
 	}
-	if total != 0 {
-		t.Errorf("expected total 0, got %d", total)
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsStr(s, substr))
-}
-
-func containsStr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

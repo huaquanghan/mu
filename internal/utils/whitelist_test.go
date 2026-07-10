@@ -68,6 +68,28 @@ steps = ["apt"]
 	}
 }
 
+func TestLoadWhitelistRejectsUnknownAndSemanticInvalidKeys(t *testing.T) {
+	for name, config := range map[string]string{
+		"unknown":       "[protectd_paths]\nsystem = [\"/safe\"]\n",
+		"relative-path": "[protected_paths]\nsystem = [\"relative\"]\n",
+		"escaping-skip": "[cache_skip]\ndirs = [\"../outside\"]\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			t.Setenv("XDG_CONFIG_HOME", root)
+			if err := os.MkdirAll(filepath.Join(root, "mu"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "mu", "config.toml"), []byte(config), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := LoadWhitelist(); err == nil {
+				t.Fatal("expected invalid configuration rejection")
+			}
+		})
+	}
+}
+
 func TestMatchCacheSkip_TopLevel(t *testing.T) {
 	home := "/home/u/.cache"
 	patterns := []string{"go-build", "pip"}

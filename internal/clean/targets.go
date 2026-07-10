@@ -1,12 +1,15 @@
 package clean
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 
+	"github.com/huaquanghan/mu/internal/command"
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
@@ -14,11 +17,14 @@ import (
 type CleanTarget struct {
 	ID           string
 	Label        string
-	Scan         func() int64 // returns size in bytes (0 if unavailable/skipped)
+	Scan         func() (int64, error)
+	Preview      func() ([]string, error)
 	Execute      func(dryRun bool) error
 	RequiresSudo bool
 	OptIn        bool // if true, only included when ID is in opts.Include
 }
+
+var cleanRunner = command.Runner(command.ExecRunner{})
 
 // AllTargets returns all built-in clean targets in display order.
 // Docker target is included only if the Docker socket is present.
@@ -38,6 +44,34 @@ func AllTargets() []CleanTarget {
 	return targets
 }
 
+// ResolveTargets validates include IDs and returns the enabled target set.
+func ResolveTargets(include []string) ([]CleanTarget, error) {
+	all := AllTargets()
+	byID := make(map[string]CleanTarget, len(all))
+	for _, target := range all {
+		byID[target.ID] = target
+	}
+	includeSet := make(map[string]bool, len(include))
+	for _, id := range include {
+		target, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("unknown clean include ID: %s", id)
+		}
+		if !target.OptIn {
+			return nil, fmt.Errorf("clean include ID is not opt-in: %s", id)
+		}
+		includeSet[id] = true
+	}
+	var targets []CleanTarget
+	for _, target := range all {
+		if target.OptIn && !includeSet[target.ID] {
+			continue
+		}
+		targets = append(targets, target)
+	}
+	return targets, nil
+}
+
 // userCacheTarget scans ~/.cache but excludes the thumbnails subdir
 // and any path matching cache_skip (defaults + user config).
 func userCacheTarget() CleanTarget {
@@ -47,16 +81,22 @@ func userCacheTarget() CleanTarget {
 	return CleanTarget{
 		ID:    "user-cache",
 		Label: "User Cache (~/.cache)",
-		Scan: func() int64 {
-			wl, _ := utils.LoadWhitelist()
+		Scan: func() (int64, error) {
+			if err := utils.ValidateCleanupRoot(cacheHome); err != nil {
+				return 0, err
+			}
+			wl, err := utils.LoadWhitelist()
+			if err != nil {
+				return 0, err
+			}
 			var patterns []string
 			if wl != nil {
 				patterns = wl.CacheSkip.Dirs
 			}
 			var total int64
-			filepath.WalkDir(cacheHome, func(path string, d fs.DirEntry, err error) error {
+			err = filepath.WalkDir(cacheHome, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
-					return nil
+					return err
 				}
 				// Skip thumbnails entirely to avoid double-counting
 				if path == thumbDir {
@@ -76,10 +116,16 @@ func userCacheTarget() CleanTarget {
 				}
 				return nil
 			})
-			return total
+			return total, err
 		},
 		Execute: func(dryRun bool) error {
-			wl, _ := utils.LoadWhitelist()
+			if err := utils.ValidateCleanupRoot(cacheHome); err != nil {
+				return err
+			}
+			wl, err := utils.LoadWhitelist()
+			if err != nil {
+				return err
+			}
 			var patterns []string
 			if wl != nil {
 				patterns = wl.CacheSkip.Dirs
@@ -90,6 +136,7 @@ func userCacheTarget() CleanTarget {
 			if err != nil {
 				return err
 			}
+			var deleteErrors []error
 			for _, entry := range entries {
 				base := filepath.Base(entry)
 				if base == "thumbnails" {
@@ -101,11 +148,15 @@ func userCacheTarget() CleanTarget {
 				if utils.MatchCacheSkip(entry, cacheHome, patterns) {
 					continue
 				}
-				if err := utils.SafeDelete(entry, dryRun); err != nil && !dryRun {
-					fmt.Printf("  warn: %v\n", err)
+				if err := utils.ValidateCleanupCandidate(cacheHome, entry); err != nil {
+					deleteErrors = append(deleteErrors, err)
+					continue
+				}
+				if err := utils.SafeDelete(entry, dryRun); err != nil {
+					deleteErrors = append(deleteErrors, err)
 				}
 			}
-			return nil
+			return errors.Join(deleteErrors...)
 		},
 	}
 }
@@ -116,13 +167,18 @@ func thumbnailsTarget() CleanTarget {
 	return CleanTarget{
 		ID:    "thumbnails",
 		Label: "Thumbnail Cache",
-		Scan: func() int64 {
-			sz, _ := utils.DirSize(thumbDir)
-			return sz
+		Scan: func() (int64, error) {
+			if !utils.PathExists(thumbDir) {
+				return 0, nil
+			}
+			return utils.DirSize(thumbDir)
 		},
 		Execute: func(dryRun bool) error {
 			if !utils.PathExists(thumbDir) {
 				return nil
+			}
+			if err := utils.ValidateCleanupCandidate(utils.XDGCacheHome(), thumbDir); err != nil {
+				return err
 			}
 			return utils.SafeDelete(thumbDir, dryRun)
 		},
@@ -136,19 +192,20 @@ func aptCacheTarget() CleanTarget {
 		ID:           "apt-cache",
 		Label:        "APT Package Cache",
 		RequiresSudo: true,
-		Scan: func() int64 {
-			sz, _ := utils.DirSize(aptPath)
-			return sz
+		Scan: func() (int64, error) {
+			size, _ := utils.DirSize(aptPath)
+			return size, nil
 		},
 		Execute: func(dryRun bool) error {
 			if dryRun {
-				utils.LogOp("dry-run", "sudo apt clean")
+				utils.LogOutcome("apt-clean", "apt cache", "dry-run")
 				return nil
 			}
-			cmd := exec.Command("sudo", "apt", "clean")
-			cmd.Stdout = nil
-			cmd.Stderr = os.Stderr
-			return cmd.Run()
+			result, err := cleanRunner.Run(context.Background(), "sudo", "apt-get", "clean")
+			if len(result.Stderr) > 0 {
+				_, _ = os.Stderr.Write(result.Stderr)
+			}
+			return err
 		},
 	}
 }
@@ -158,21 +215,22 @@ func journalLogsTarget() CleanTarget {
 	return CleanTarget{
 		ID:    "journal-logs",
 		Label: "Journal Logs",
-		Scan: func() int64 {
+		Scan: func() (int64, error) {
 			return JournalSize()
 		},
 		Execute: func(dryRun bool) error {
 			if dryRun {
-				utils.LogOp("dry-run", "journalctl --vacuum-time=30d")
+				utils.LogOutcome("journal-vacuum", "30d", "dry-run")
 				return nil
 			}
-			cmd := exec.Command("journalctl", "--vacuum-time=30d")
-			cmd.Stdout = nil
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
+			result, err := cleanRunner.Run(context.Background(), "journalctl", "--vacuum-time=30d")
+			if len(result.Stderr) > 0 {
+				_, _ = os.Stderr.Write(result.Stderr)
+			}
+			if err != nil {
 				return fmt.Errorf("journalctl vacuum: %w", err)
 			}
-			utils.LogOp("vacuum", "journalctl")
+			utils.LogOutcome("journal-vacuum", "30d", "success")
 			return nil
 		},
 	}
@@ -180,23 +238,28 @@ func journalLogsTarget() CleanTarget {
 
 // JournalSize parses journalctl --disk-usage to get journal size in bytes.
 // Returns 0 if journalctl is unavailable or output cannot be parsed.
-func JournalSize() int64 {
-	out, err := exec.Command("journalctl", "--disk-usage").Output()
+func JournalSize() (int64, error) {
+	if _, err := cleanRunner.LookPath("journalctl"); err != nil {
+		return 0, nil
+	}
+	result, err := cleanRunner.Run(context.Background(), "journalctl", "--disk-usage")
 	if err != nil {
-		return 0
+		return 0, err
 	}
 	var val float64
 	var unit string
-	fmt.Sscanf(string(out), "Archived and active journals take up %f%s", &val, &unit)
+	if _, err := fmt.Sscanf(string(result.Stdout), "Archived and active journals take up %f%s", &val, &unit); err != nil {
+		return 0, fmt.Errorf("parse journal disk usage: %w", err)
+	}
 	switch {
 	case len(unit) > 0 && unit[0] == 'G':
-		return int64(val * 1024 * 1024 * 1024)
+		return int64(val * 1024 * 1024 * 1024), nil
 	case len(unit) > 0 && unit[0] == 'M':
-		return int64(val * 1024 * 1024)
+		return int64(val * 1024 * 1024), nil
 	case len(unit) > 0 && unit[0] == 'K':
-		return int64(val * 1024)
+		return int64(val * 1024), nil
 	}
-	return 0
+	return 0, fmt.Errorf("unknown journal size unit: %q", strings.TrimSpace(unit))
 }
 
 // TargetByID returns the clean target with the given ID, if present.

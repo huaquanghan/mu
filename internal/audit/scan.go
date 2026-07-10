@@ -1,8 +1,8 @@
 package audit
 
 import (
+	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -35,6 +35,8 @@ type Snapshot struct {
 	JournalBytes    int64
 	AptAutoremoveN  int
 	CPUPercent      float64
+	ScanErrors      []string
+	Warnings        []string
 }
 
 // ProgressFunc is called with a short status line during collection.
@@ -42,6 +44,12 @@ type ProgressFunc func(msg string)
 
 // Collect gathers cleanup and health signals. progress may be nil.
 func Collect(progress ProgressFunc) Snapshot {
+	return CollectContext(context.Background(), progress)
+}
+
+// CollectContext gathers cleanup and health signals and honors cancellation
+// between read-only scanner steps.
+func CollectContext(ctx context.Context, progress ProgressFunc) Snapshot {
 	report := func(msg string) {
 		if progress != nil {
 			progress(msg)
@@ -52,8 +60,15 @@ func Collect(progress ProgressFunc) Snapshot {
 
 	report("Scanning clean categories…")
 	for _, t := range clean.AllTargets() {
+		if err := ctx.Err(); err != nil {
+			snap.ScanErrors = append(snap.ScanErrors, err.Error())
+			break
+		}
 		report(fmt.Sprintf("Scanning %s…", t.ID))
-		sz := t.Scan()
+		sz, err := t.Scan()
+		if err != nil {
+			snap.ScanErrors = append(snap.ScanErrors, fmt.Sprintf("%s: %v", t.ID, err))
+		}
 		snap.Targets = append(snap.Targets, TargetSize{
 			ID:           t.ID,
 			Label:        t.Label,
@@ -61,24 +76,51 @@ func Collect(progress ProgressFunc) Snapshot {
 			OptIn:        t.OptIn,
 			RequiresSudo: t.RequiresSudo,
 		})
+		if t.ID == "kernels" && t.Preview != nil {
+			items, err := t.Preview()
+			if err != nil {
+				snap.ScanErrors = append(snap.ScanErrors, fmt.Sprintf("kernels preview: %v", err))
+			} else {
+				snap.AptAutoremoveN = len(items)
+			}
+		}
 	}
 
 	report("Reading health metrics…")
+	cpuAvailable := false
 	s1, err := status.ReadCPU()
 	if err == nil {
 		time.Sleep(200 * time.Millisecond)
-		s2, _ := status.ReadCPU()
-		snap.CPUPercent = status.CPUPercent(s1, s2)
+		s2, secondErr := status.ReadCPU()
+		if secondErr != nil {
+			snap.ScanErrors = append(snap.ScanErrors, "cpu: "+secondErr.Error())
+		} else {
+			snap.CPUPercent = status.CPUPercent(s1, s2)
+			cpuAvailable = true
+		}
+	} else {
+		snap.ScanErrors = append(snap.ScanErrors, "cpu: "+err.Error())
 	}
-	mem, _ := status.ReadMemory()
-	disks, _ := status.ReadDisk()
-	snap.Health = status.HealthScore(snap.CPUPercent, mem, disks)
+	mem, memErr := status.ReadMemory()
+	if memErr != nil {
+		snap.ScanErrors = append(snap.ScanErrors, "memory: "+memErr.Error())
+	}
+	disks, diskErr := status.ReadDisk()
+	if diskErr != nil {
+		snap.ScanErrors = append(snap.ScanErrors, "disk: "+diskErr.Error())
+	}
+	snap.Health = status.HealthScoreAvailable(snap.CPUPercent, cpuAvailable, mem, memErr == nil, disks)
 
-	snap.DiskFreePctRoot = 100.0
+	snap.DiskFreePctRoot = 0
+	rootFound := false
 	for _, d := range disks {
 		if d.Mount == "/" && d.TotalBytes > 0 {
 			snap.DiskFreePctRoot = float64(d.FreeBytes) / float64(d.TotalBytes) * 100
+			rootFound = true
 		}
+	}
+	if !rootFound {
+		snap.ScanErrors = append(snap.ScanErrors, "disk: root filesystem metric unavailable")
 	}
 	if mem.TotalKB > 0 {
 		snap.MemAvailPct = float64(mem.AvailableKB) / float64(mem.TotalKB) * 100
@@ -89,10 +131,10 @@ func Collect(progress ProgressFunc) Snapshot {
 	}
 
 	report("Checking journal size…")
-	snap.JournalBytes = clean.JournalSize()
-
-	report("Checking apt autoremove…")
-	snap.AptAutoremoveN = countAptAutoremove()
+	snap.JournalBytes, err = clean.JournalSize()
+	if err != nil {
+		snap.ScanErrors = append(snap.ScanErrors, "journal: "+err.Error())
+	}
 
 	return snap
 }
@@ -135,9 +177,13 @@ func BuildFindings(snap Snapshot, includePreselect []string) []Finding {
 	}
 
 	// Clean targets
+	autoremoveFindingEmitted := false
 	for _, t := range snap.Targets {
-		if t.Bytes <= 0 {
+		if t.Bytes <= 0 && !(t.ID == "kernels" && snap.AptAutoremoveN > 0) {
 			continue
+		}
+		if t.ID == "kernels" {
+			autoremoveFindingEmitted = true
 		}
 		// Journal: single finding via clean action (dedupe optimize:journal)
 		if t.ID == "journal-logs" {
@@ -228,15 +274,15 @@ func BuildFindings(snap Snapshot, includePreselect []string) []Finding {
 	}
 
 	// Apt autoremove
-	if snap.AptAutoremoveN > 0 {
+	if snap.AptAutoremoveN > 0 && !autoremoveFindingEmitted {
 		defSel := diskCritical || diskWarning
 		findings = append(findings, Finding{
-			ID:              "optimize:apt",
+			ID:              "clean:kernels",
 			Severity:        SeverityInfo,
 			Title:           "Unused packages can be removed",
-			Detail:          fmt.Sprintf("apt reports ~%d auto-removable package(s). Runs apt update && autoremove --purge.", snap.AptAutoremoveN),
+			Detail:          fmt.Sprintf("apt reports %d auto-removable package(s). Uses apt autoremove --purge policy.", snap.AptAutoremoveN),
 			Bytes:           0,
-			Action:          "optimize:apt",
+			Action:          "clean:kernels",
 			Selectable:      true,
 			DefaultSelected: defSel,
 		})
@@ -317,27 +363,7 @@ func BuildReport(snap Snapshot, include []string) Report {
 		ReclaimableBytes:    reclaim,
 		Findings:            fs,
 		RecommendedCommands: RecommendedCommands(fs),
+		Warnings:            append([]string(nil), snap.Warnings...),
+		ScanErrors:          append([]string(nil), snap.ScanErrors...),
 	}
-}
-
-// countAptAutoremove best-effort count from apt-get simulate (no writes).
-func countAptAutoremove() int {
-	// Prefer non-sudo simulate; may fail without cache — return 0.
-	out, err := exec.Command("apt-get", "-s", "autoremove").CombinedOutput()
-	if err != nil {
-		// try with DEBIAN_FRONTEND
-		cmd := exec.Command("apt-get", "-s", "-o", "Debug::NoLocking=1", "autoremove")
-		out, err = cmd.CombinedOutput()
-		if err != nil {
-			return 0
-		}
-	}
-	n := 0
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "Remv ") || strings.HasPrefix(line, "Purg ") {
-			n++
-		}
-	}
-	return n
 }

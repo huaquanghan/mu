@@ -19,20 +19,20 @@ type Snapshot struct {
 	Disks      []DiskStat         `json:"disks"`
 	Network    map[string]NetRate `json:"network"`
 	Health     int                `json:"health"`
+	ScanErrors []string           `json:"scan_errors,omitempty"`
 }
 
 // Model is the Bubbletea model for the live dashboard.
 type Model struct {
-	prevCPU  CPUSample
-	cpu      float64
-	mem      MemStats
-	disks    []DiskStat
-	prevNets map[string]NetStat
-	nets     map[string]NetStat
-	netRates map[string]NetRate
-	health   int
-	prevTime time.Time
-	err      error
+	prevCPU    CPUSample
+	cpu        float64
+	mem        MemStats
+	disks      []DiskStat
+	prevNets   map[string]NetStat
+	netRates   map[string]NetRate
+	health     int
+	prevTime   time.Time
+	scanErrors []string
 }
 
 // NewModel returns a fresh Model.
@@ -47,18 +47,34 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tickMsg:
+		m.scanErrors = nil
+		cpuAvailable := false
+		memAvailable := false
 		// 1. Read CPU; compute percent from prev
 		curr, err := ReadCPU()
 		if err == nil {
-			m.cpu = CPUPercent(m.prevCPU, curr)
+			if m.prevCPU != (CPUSample{}) {
+				m.cpu = CPUPercent(m.prevCPU, curr)
+				cpuAvailable = true
+			}
 			m.prevCPU = curr
 		} else {
-			m.err = err
+			m.scanErrors = append(m.scanErrors, "cpu: "+err.Error())
 		}
 		// 2. Read memory
-		m.mem, _ = ReadMemory()
+		mem, memErr := ReadMemory()
+		if memErr != nil {
+			m.scanErrors = append(m.scanErrors, "memory: "+memErr.Error())
+		} else {
+			m.mem = mem
+			memAvailable = true
+		}
 		// 3. Read disk
-		m.disks, _ = ReadDisk()
+		disks, diskErr := ReadDisk()
+		m.disks = disks
+		if diskErr != nil {
+			m.scanErrors = append(m.scanErrors, "disk: "+diskErr.Error())
+		}
 		// 4. Read network; compute rates
 		currNets, err := ReadNetwork()
 		if err == nil {
@@ -70,10 +86,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.netRates = NetworkRates(m.prevNets, currNets, elapsed)
 			}
 			m.prevNets = currNets
+		} else {
+			m.scanErrors = append(m.scanErrors, "network: "+err.Error())
 		}
 		m.prevTime = time.Time(msg)
 		// 5. Compute health
-		m.health = HealthScore(m.cpu, m.mem, m.disks)
+		m.health = HealthScoreAvailable(m.cpu, cpuAvailable, m.mem, memAvailable, m.disks)
 		// 6. Schedule next tick
 		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
@@ -130,6 +148,9 @@ func (m Model) View() string {
 	parts := []string{"", "", title, "", cpuLine, ramLine}
 	parts = append(parts, diskLines...)
 	parts = append(parts, netLines...)
+	for _, scanErr := range m.scanErrors {
+		parts = append(parts, "  Unavailable: "+scanErr)
+	}
 	parts = append(parts, "", "", badge, "", "", "", footer)
 	return strings.Join(parts, "\n")
 }

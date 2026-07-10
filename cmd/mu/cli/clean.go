@@ -19,7 +19,7 @@ var cleanCmd = &cobra.Command{
   • APT package cache
   • Snap disabled revisions
   • Journal logs (older than 30 days)
-  • Old kernel headers and images
+  • Complete APT-policy autoremove candidate set
   • Browser caches (Chrome, Firefox, VSCode)
   • Thumbnail cache
   • Docker build cache (if Docker is installed)

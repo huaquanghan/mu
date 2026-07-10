@@ -1,9 +1,9 @@
 package clean
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/huaquanghan/mu/internal/utils"
@@ -64,23 +64,22 @@ func newDockerTarget() CleanTarget {
 		ID:    "docker",
 		Label: "Docker Build Cache",
 		OptIn: true,
-		Scan: func() int64 {
-			out, err := exec.Command("docker", "system", "df", "--format", "{{json .}}").Output()
+		Scan: func() (int64, error) {
+			result, err := cleanRunner.Run(context.Background(), "docker", "system", "df", "--format", "{{json .}}")
 			if err != nil {
-				return 0
+				return 0, err
 			}
-			return parseDockerBuildCacheSize(string(out))
+			return parseDockerBuildCacheSize(string(result.Stdout)), nil
 		},
 		Execute: func(dryRun bool) error {
 			if dryRun {
-				utils.LogOp("dry-run", "docker builder prune -f")
+				utils.LogOutcome("docker-builder-prune", "build cache", "dry-run")
 				return nil
 			}
-			cmd := exec.Command("docker", "builder", "prune", "-f")
-			if err := cmd.Run(); err != nil {
+			if _, err := cleanRunner.Run(context.Background(), "docker", "builder", "prune", "-f"); err != nil {
 				return fmt.Errorf("docker builder prune: %w", err)
 			}
-			utils.LogOp("docker-builder-prune", "build cache")
+			utils.LogOutcome("docker-builder-prune", "build cache", "success")
 			return nil
 		},
 	}

@@ -48,6 +48,8 @@ type Report struct {
 	ReclaimableBytes    int64     `json:"reclaimable_bytes"`
 	Findings            []Finding `json:"findings"`
 	RecommendedCommands []string  `json:"recommended_commands"`
+	Warnings            []string  `json:"warnings,omitempty"`
+	ScanErrors          []string  `json:"scan_errors,omitempty"`
 }
 
 // SortFindings orders by severity, then bytes descending, then selectable actions first.

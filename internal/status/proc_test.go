@@ -1,7 +1,10 @@
 package status
 
 import (
+	"errors"
 	"os"
+	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -17,12 +20,53 @@ func TestReadCPU_ParsesFixture(t *testing.T) {
 	}
 }
 
+func TestCPUPercentCounterResetClampsToZero(t *testing.T) {
+	prev := CPUSample{User: 100, Idle: 900}
+	curr := CPUSample{User: 50, Idle: 400}
+	if got := CPUPercent(prev, curr); got != 0 {
+		t.Fatalf("counter reset produced %.2f, want 0", got)
+	}
+}
+
 func TestReadCPU_ZeroPrevGivesZero(t *testing.T) {
 	var prev CPUSample
 	curr := CPUSample{User: 100, Idle: 900}
 	pct := CPUPercent(prev, curr)
 	if pct != 0 {
 		t.Errorf("zero prev should give 0%%, got %.2f", pct)
+	}
+}
+
+func TestReadDiskParsesMountInfoAndExcludesEFIVariables(t *testing.T) {
+	fixture := strings.NewReader(
+		"36 25 8:1 / / rw,relatime - ext4 /dev/root rw\n" +
+			"37 25 0:31 / /sys/firmware/efi/efivars rw - efivarfs efivarfs rw\n")
+	efiCalled := false
+	disks, err := readDiskFrom(fixture, func(path string, stat *syscall.Statfs_t) error {
+		if strings.Contains(path, "efivars") {
+			efiCalled = true
+		}
+		stat.Blocks = 100
+		stat.Bavail = 40
+		stat.Bsize = 4096
+		stat.Fsid.X__val[0] = 1
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if efiCalled || len(disks) != 1 || disks[0].Mount != "/" {
+		t.Fatalf("pseudo filesystem leaked into disk stats: disks=%+v efiCalled=%v", disks, efiCalled)
+	}
+}
+
+func TestReadDiskSurfacesStatfsErrors(t *testing.T) {
+	fixture := strings.NewReader("36 25 8:1 / / rw - ext4 /dev/root rw\n")
+	disks, err := readDiskFrom(fixture, func(string, *syscall.Statfs_t) error {
+		return errors.New("permission denied")
+	})
+	if len(disks) != 0 || err == nil || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("disks=%v err=%v", disks, err)
 	}
 }
 

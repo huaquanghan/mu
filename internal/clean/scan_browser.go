@@ -1,9 +1,10 @@
 package clean
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/huaquanghan/mu/internal/utils"
 )
@@ -41,23 +42,41 @@ func browserCacheTarget() CleanTarget {
 		ID:    "browser-cache",
 		Label: "Browser Caches (Chrome/Firefox/VSCode)",
 		OptIn: true,
-		Scan: func() int64 {
+		Scan: func() (int64, error) {
 			var total int64
+			var scanErrors []error
 			for _, p := range browserCachePaths() {
 				sz, err := utils.DirSize(p)
 				if err == nil {
 					total += sz
+				} else {
+					scanErrors = append(scanErrors, err)
 				}
 			}
-			return total
+			return total, errors.Join(scanErrors...)
 		},
 		Execute: func(dryRun bool) error {
+			var deleteErrors []error
 			for _, p := range browserCachePaths() {
+				root := browserCleanupRoot(p)
+				if err := utils.ValidateCleanupCandidate(root, p); err != nil {
+					deleteErrors = append(deleteErrors, err)
+					continue
+				}
 				if err := utils.SafeDelete(p, dryRun); err != nil {
-					fmt.Printf("  warn: %v\n", err)
+					deleteErrors = append(deleteErrors, err)
 				}
 			}
-			return nil
+			return errors.Join(deleteErrors...)
 		},
 	}
+}
+
+func browserCleanupRoot(path string) string {
+	home, _ := os.UserHomeDir()
+	mozilla := filepath.Join(home, ".mozilla")
+	if path == mozilla || strings.HasPrefix(path, mozilla+string(filepath.Separator)) {
+		return mozilla
+	}
+	return filepath.Join(home, ".config")
 }

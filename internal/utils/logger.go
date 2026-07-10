@@ -32,10 +32,16 @@ func InitLogger() error {
 }
 
 func LogOp(action, target string) {
+	LogOutcome(action, target, "success")
+}
+
+// LogOutcome records the final outcome of an operation. Callers must only log
+// success after the operation completes.
+func LogOutcome(action, target, outcome string) {
 	if logFile == nil {
 		return
 	}
-	fmt.Fprintf(logFile, "%s  %-12s  %s\n", time.Now().Format(time.RFC3339), action, target)
+	fmt.Fprintf(logFile, "%s  %-12s  %-8s  %s\n", time.Now().Format(time.RFC3339), action, outcome, target)
 }
 
 func CloseLogger() {
@@ -45,9 +51,6 @@ func CloseLogger() {
 }
 
 func xdgDataHome() string {
-	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
-		return d
-	}
 	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".local", "share")
+	return xdgHome("XDG_DATA_HOME", filepath.Join(home, ".local", "share"))
 }

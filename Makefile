@@ -5,8 +5,10 @@ BUILD_DIR := ./bin
 INSTALL_DIR := $(HOME)/.local/bin
 VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS   := -s -w -X $(MODULE)/cmd/mu/cli.Version=$(VERSION)
+SHELL     := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
 
-.PHONY: build install install-local uninstall test test-verbose test-race smoke run clean lint release deps checksums
+.PHONY: build install install-local uninstall test test-verbose test-race coverage smoke run clean lint release deps checksums harness-bootstrap harness-init
 
 # ── Build ────────────────────────────────────────────────────────────────────
 
@@ -44,6 +46,13 @@ test-verbose:
 test-race:
 	go test ./... -count=1 -race
 
+coverage:
+	@for pkg in utils clean uninstall optimize; do \
+		go test ./internal/$$pkg -count=1 -coverprofile=/tmp/mu-$$pkg.cover >/dev/null; \
+		pct=$$(go tool cover -func=/tmp/mu-$$pkg.cover | awk '/^total:/ {gsub("%", "", $$3); print $$3}'); \
+		awk -v pkg="$$pkg" -v pct="$$pct" 'BEGIN { printf "%s: %.1f%%\n", pkg, pct; if (pct < 80) exit 1 }'; \
+	done
+
 # Smoke test: runs the non-destructive flags against the live system.
 # Does not require YES confirmation or sudo.
 smoke: build
@@ -57,10 +66,11 @@ smoke: build
 	@$(BUILD_DIR)/$(BINARY) optimize --dry-run
 	@echo ""
 	@echo "=== mu audit --report ==="
-	@$(BUILD_DIR)/$(BINARY) audit --report || true
+	@code=0; $(BUILD_DIR)/$(BINARY) audit --report || code=$$?; \
+		if [ "$$code" -gt 2 ]; then echo "unexpected audit exit code: $$code" >&2; exit "$$code"; fi
 	@echo ""
 	@echo "=== mu status (JSON mode) ==="
-	@$(BUILD_DIR)/$(BINARY) status | python3 -m json.tool --no-ensure-ascii | head -20
+	@$(BUILD_DIR)/$(BINARY) status | python3 -m json.tool --no-ensure-ascii
 	@echo ""
 	@echo "=== Binary size ==="
 	@du -sh $(BUILD_DIR)/$(BINARY)
@@ -97,5 +107,12 @@ checksums: build
 
 release:
 	goreleaser release --clean
+
+harness-bootstrap:
+	./scripts/harness-bootstrap.sh
+
+harness-init: harness-bootstrap
+	./scripts/bin/harness-cli init
+	./scripts/bin/harness-cli import brownfield
 
 PREFIX ?= /usr/local

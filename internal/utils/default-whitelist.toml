@@ -17,7 +17,8 @@ system = [
   "/run",
 ]
 
-# Kernel currently in use is always protected (detected at runtime via uname -r)
+# Legacy key retained for config compatibility. APT simulated autoremove policy
+# is the sole source of package removal candidates (mu does not filter by uname -r).
 protect_running_kernel = true
 
 # Cache dirs to always skip inside ~/.cache (relative paths; globs supported)

@@ -15,7 +15,7 @@ var optimizeCmd = &cobra.Command{
 	Use:   "optimize",
 	Short: "Run system maintenance: apt autoremove, journal vacuum, cache refresh",
 	Long: `Runs the following maintenance tasks:
-  1. apt update && apt autoremove --purge
+  1. apt-get update && apt-get autoremove --purge
   2. journalctl --vacuum-size=500M
   3. update-mime-database, fc-cache
 

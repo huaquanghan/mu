@@ -31,7 +31,6 @@ var (
 	selectedS = lipgloss.NewStyle().Foreground(cyan).Bold(true)
 )
 
-type progressMsg string
 type scannedMsg struct {
 	snap Snapshot
 	rep  Report
@@ -47,7 +46,6 @@ type rescoredMsg struct {
 type auditModel struct {
 	phase    phase
 	opts     Options
-	progress string
 	snap     Snapshot
 	report   Report
 	after    Report
@@ -58,7 +56,6 @@ type auditModel struct {
 	confirm  int          // 0=YES 1=NO
 	applying bool
 	results  []ApplyResult
-	err      error
 	width    int
 	height   int
 	done     bool
@@ -208,8 +205,8 @@ func (m auditModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case phaseApply:
 		if key == "ctrl+c" {
-			m.done = true
-			return m, tea.Quit
+			m.status = "Active maintenance cannot be interrupted safely; waiting for completion."
+			return m, nil
 		}
 
 	case phaseRescore:
@@ -261,8 +258,12 @@ func (m auditModel) View() string {
 	case phaseConfirm:
 		return m.viewConfirm()
 	case phaseApply:
-		return "\n\n  " + titleSt.Render("Applying fixes…") + "\n\n  Please wait.\n\n\n" +
-			faintSt.Render("  ctrl+c to cancel remaining") + "\n"
+		notice := "  Please wait."
+		if m.status != "" {
+			notice += "\n  " + m.status
+		}
+		return "\n\n  " + titleSt.Render("Applying fixes…") + "\n\n" + notice + "\n\n\n" +
+			faintSt.Render("  active package operations are allowed to finish") + "\n"
 	case phaseRescore:
 		return m.viewRescore()
 	default:
@@ -336,11 +337,7 @@ func (m auditModel) viewConfirm() string {
 	}
 	b.WriteString("  Will apply:\n")
 	for _, f := range m.selectedFindings() {
-		extra := ""
-		if strings.HasPrefix(f.Action, "clean:") || strings.HasPrefix(f.Action, "optimize:apt") {
-			// note sudo-ish
-		}
-		b.WriteString(fmt.Sprintf("    • %s (%s)%s\n", f.Title, f.Action, extra))
+		b.WriteString(fmt.Sprintf("    • %s (%s)\n", f.Title, f.Action))
 	}
 	b.WriteString("\n  Sudo may be required for apt/snap/kernel/journal actions.\n")
 	b.WriteString("  User files go to trash when cleaned.\n\n")

@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/huaquanghan/mu/internal/clean"
 	"github.com/huaquanghan/mu/internal/utils"
 	"github.com/mattn/go-isatty"
 )
+
+// ExitError preserves report exit codes without terminating library callers.
+type ExitError struct{ Code int }
+
+func (e *ExitError) Error() string { return fmt.Sprintf("audit findings require exit code %d", e.Code) }
+func (e *ExitError) ExitCode() int { return e.Code }
 
 // Options controls audit behavior.
 type Options struct {
@@ -24,11 +31,29 @@ func Run(opts Options) error {
 	if !opts.Report && !opts.JSON && !isatty.IsTerminal(os.Stdout.Fd()) {
 		opts.Report = true
 	}
+	if err := ValidateOptions(opts); err != nil {
+		return err
+	}
 
 	if opts.JSON || opts.Report {
 		return runReport(opts)
 	}
 	return runWizard(opts)
+}
+
+func ValidateOptions(opts Options) error {
+	if opts.Report && opts.JSON {
+		return fmt.Errorf("--report and --json are mutually exclusive")
+	}
+	if opts.DryRun && (opts.Report || opts.JSON) {
+		return fmt.Errorf("--dry-run is only valid for the interactive audit workflow")
+	}
+	if len(opts.Include) > 0 {
+		if _, err := clean.ResolveTargets(opts.Include); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func runReport(opts Options) error {
@@ -55,7 +80,7 @@ func runReport(opts Options) error {
 
 	code := ExitCodeForReport(rep.Findings)
 	if code != 0 {
-		os.Exit(code)
+		return &ExitError{Code: code}
 	}
 	return nil
 }
@@ -66,6 +91,13 @@ func printHumanReport(rep Report) {
 	fmt.Printf("  Disk / free:      %.0f%%\n", rep.DiskFreePctRoot)
 	fmt.Printf("  Reclaimable:      %s\n", utils.HumanSize(rep.ReclaimableBytes))
 	fmt.Println()
+	if len(rep.Warnings) > 0 || len(rep.ScanErrors) > 0 {
+		fmt.Println("  Scan warnings:")
+		for _, warning := range append(append([]string(nil), rep.Warnings...), rep.ScanErrors...) {
+			fmt.Printf("  • %s\n", warning)
+		}
+		fmt.Println()
+	}
 
 	if len(rep.Findings) == 0 {
 		fmt.Println("  ✅ No issues found. System looks clean.")

@@ -39,3 +39,14 @@ func TestApply_skipsOptimizeStepConfiguredInPolicy(t *testing.T) {
 		t.Fatalf("expected policy skip message, got %q", out.String())
 	}
 }
+
+func TestApplyDeduplicatesIdenticalActions(t *testing.T) {
+	var out bytes.Buffer
+	results := Apply([]Finding{
+		{ID: "first", Title: "first", Action: "unknown:same", Selectable: true},
+		{ID: "second", Title: "second", Action: "unknown:same", Selectable: true},
+	}, true, false, &out)
+	if len(results) != 2 || results[0].Err == nil || !results[1].Skipped {
+		t.Fatalf("duplicate action was not skipped: %+v", results)
+	}
+}

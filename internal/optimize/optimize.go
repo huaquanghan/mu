@@ -1,18 +1,27 @@
 package optimize
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/huaquanghan/mu/internal/clean"
+	"github.com/huaquanghan/mu/internal/command"
 	"github.com/huaquanghan/mu/internal/ui"
 	"github.com/huaquanghan/mu/internal/utils"
+	"github.com/mattn/go-isatty"
+)
+
+var (
+	optimizeRunner = command.Runner(command.ExecRunner{})
+	runAutoremove  = clean.RunAutoremove
 )
 
 // Options controls optimize behavior.
@@ -31,7 +40,7 @@ type step struct {
 
 func allSteps() []step {
 	return []step{
-		{"apt", "apt update && apt autoremove --purge", aptAutoremove},
+		{"apt", "apt-get update && apt-get autoremove --purge", aptAutoremove},
 		{"journal", "journalctl --vacuum-size=500M", journalVacuum},
 		{"caches", "update icon/mime/font caches", updateCaches},
 	}
@@ -64,7 +73,11 @@ func RunStep(id string, opts Options, out io.Writer) (skipped bool, err error) {
 	if target.id == "" {
 		return false, fmt.Errorf("unknown optimize step: %s", id)
 	}
-	if slices.Contains(resolveSkip(opts), id) {
+	skip, err := resolveSkip(opts)
+	if err != nil {
+		return false, err
+	}
+	if slices.Contains(skip, id) {
 		return true, nil
 	}
 	return false, target.run(out)
@@ -72,7 +85,13 @@ func RunStep(id string, opts Options, out io.Writer) (skipped bool, err error) {
 
 // Run executes (or previews) the optimization steps.
 func Run(opts Options) error {
-	skip := resolveSkip(opts)
+	if _, err := utils.LoadWhitelist(); err != nil {
+		return fmt.Errorf("invalid mu configuration: %w", err)
+	}
+	skip, err := resolveSkip(opts)
+	if err != nil {
+		return err
+	}
 	steps := allSteps()
 
 	fmt.Print("\n🔧 Optimize plan:\n\n")
@@ -99,26 +118,35 @@ func Run(opts Options) error {
 	}
 	defer utils.CloseLogger()
 
-	var active []step
-	for _, s := range steps {
-		if !slices.Contains(skip, s.id) {
-			active = append(active, s)
-		}
+	var programOptions []tea.ProgramOption
+	if !isatty.IsTerminal(os.Stdin.Fd()) {
+		programOptions = append(programOptions, tea.WithInput(nil))
 	}
-
-	p := tea.NewProgram(newOptimizeModel(active, opts.Debug))
-	if _, err := p.Run(); err != nil {
+	p := tea.NewProgram(newOptimizeModel(steps, skip, opts.Debug), programOptions...)
+	final, err := p.Run()
+	if err != nil {
 		return err
+	}
+	model, ok := final.(optimizeModel)
+	if !ok {
+		return fmt.Errorf("unexpected optimize model result %T", final)
+	}
+	resultErr := stepErrors(model.results)
+	if model.cancelled {
+		resultErr = errors.Join(resultErr, fmt.Errorf("optimization stopped after the active step completed"))
+	}
+	if resultErr != nil {
+		return resultErr
 	}
 
 	fmt.Println("\n✅  Optimization complete.")
 	return nil
 }
 
-func resolveSkip(opts Options) []string {
+func resolveSkip(opts Options) ([]string, error) {
 	wl, err := utils.LoadWhitelist()
-	if err != nil && opts.Debug {
-		fmt.Fprintf(os.Stderr, "warn: whitelist: %v\n", err)
+	if err != nil {
+		return nil, fmt.Errorf("invalid mu configuration: %w", err)
 	}
 
 	// Merge whitelist skip list with CLI --skip flag; CLI takes precedence for additions.
@@ -130,7 +158,13 @@ func resolveSkip(opts Options) []string {
 			}
 		}
 	}
-	return skip
+	valid := StepIDs()
+	for _, id := range skip {
+		if !slices.Contains(valid, id) {
+			return nil, fmt.Errorf("unknown optimize skip ID: %s", id)
+		}
+	}
+	return skip, nil
 }
 
 // — Bubbletea model for spinner progress —
@@ -139,21 +173,40 @@ type stepDoneMsg struct {
 	id     string
 	err    error
 	output string
+	status StepStatus
+}
+
+type StepStatus string
+
+const (
+	StepSuccess StepStatus = "success"
+	StepFailed  StepStatus = "failed"
+	StepSkipped StepStatus = "skipped"
+)
+
+type StepResult struct {
+	ID     string
+	Status StepStatus
+	Err    error
 }
 
 type optimizeModel struct {
-	spinner spinner.Model
-	steps   []step
-	current int
-	done    bool
-	debug   bool
+	spinner       spinner.Model
+	steps         []step
+	current       int
+	done          bool
+	debug         bool
+	skip          []string
+	results       []StepResult
+	stopRequested bool
+	cancelled     bool
 }
 
-func newOptimizeModel(steps []step, debug bool) optimizeModel {
+func newOptimizeModel(steps []step, skip []string, debug bool) optimizeModel {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7"))
-	return optimizeModel{spinner: sp, steps: steps, debug: debug}
+	return optimizeModel{spinner: sp, steps: steps, skip: skip, debug: debug}
 }
 
 func (m optimizeModel) Init() tea.Cmd {
@@ -165,6 +218,9 @@ func (m optimizeModel) Init() tea.Cmd {
 
 func (m optimizeModel) runCurrentStep() tea.Cmd {
 	s := m.steps[m.current]
+	if slices.Contains(m.skip, s.id) {
+		return func() tea.Msg { return stepDoneMsg{id: s.id, status: StepSkipped} }
+	}
 	return func() tea.Msg {
 		var buf strings.Builder
 		err := s.run(&buf)
@@ -172,7 +228,11 @@ func (m optimizeModel) runCurrentStep() tea.Cmd {
 		if len(output) > 4096 {
 			output = output[:4096] + "\n... (truncated)"
 		}
-		return stepDoneMsg{id: s.id, err: err, output: output}
+		status := StepSuccess
+		if err != nil {
+			status = StepFailed
+		}
+		return stepDoneMsg{id: s.id, err: err, output: output, status: status}
 	}
 }
 
@@ -184,16 +244,27 @@ func (m optimizeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case stepDoneMsg:
-		utils.LogOp("optimize", msg.id)
+		m.results = append(m.results, StepResult{ID: msg.id, Status: msg.status, Err: msg.err})
+		utils.LogOutcome("optimize", msg.id, string(msg.status))
 		var cmds []tea.Cmd
 		if msg.output != "" {
 			cmds = append(cmds, tea.Println(msg.output))
 		}
-		if msg.err != nil && m.debug {
-			cmds = append(cmds, tea.Println(fmt.Sprintf("warn: %s: %v", msg.id, msg.err)))
+		if msg.err != nil {
+			cmds = append(cmds, tea.Println(fmt.Sprintf("failed: %s: %v", msg.id, msg.err)))
 		}
 		m.current++
 		if m.current >= len(m.steps) {
+			m.done = true
+			cmds = append(cmds, tea.Quit)
+			return m, tea.Batch(cmds...)
+		}
+		if m.stopRequested {
+			for _, remaining := range m.steps[m.current:] {
+				m.results = append(m.results, StepResult{ID: remaining.id, Status: StepSkipped})
+				utils.LogOutcome("optimize", remaining.id, string(StepSkipped))
+			}
+			m.cancelled = true
 			m.done = true
 			cmds = append(cmds, tea.Quit)
 			return m, tea.Batch(cmds...)
@@ -203,7 +274,8 @@ func (m optimizeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
-			return m, tea.Quit
+			m.stopRequested = true
+			return m, nil
 		}
 	}
 	return m, nil
@@ -217,7 +289,14 @@ func (m optimizeModel) View() string {
 	for i, s := range m.steps {
 		switch {
 		case i < m.current:
-			out += fmt.Sprintf("  ✅ %s\n", s.desc)
+			status := m.results[i].Status
+			symbol := "✅"
+			if status == StepFailed {
+				symbol = "❌"
+			} else if status == StepSkipped {
+				symbol = "⏭️"
+			}
+			out += fmt.Sprintf("  %s %s\n", symbol, s.desc)
 		case i == m.current:
 			out += fmt.Sprintf("  %s %s\n", m.spinner.View(), s.desc)
 		default:
@@ -225,40 +304,51 @@ func (m optimizeModel) View() string {
 		}
 	}
 	hint := lipgloss.NewStyle().Padding(0, 2).Render("ctrl+c to cancel")
+	if m.stopRequested {
+		hint = lipgloss.NewStyle().Padding(0, 2).Render("stopping after the active step completes")
+	}
 	return "\n\n" + out + "\n\n\n" + hint + "\n"
 }
 
 func aptAutoremove(out io.Writer) error {
-	for _, args := range [][]string{
-		{"apt", "update"},
-		{"apt", "autoremove", "--purge", "-y"},
-	} {
-		cmd := exec.Command("sudo", args...)
-		cmd.Stdout = out
-		cmd.Stderr = out
-		if err := cmd.Run(); err != nil {
-			return err
-		}
+	result, err := optimizeRunner.Run(context.Background(), "sudo", "apt-get", "update")
+	_, _ = out.Write(result.Stdout)
+	_, _ = out.Write(result.Stderr)
+	if err != nil {
+		return fmt.Errorf("apt-get update: %w", err)
 	}
-	return nil
+	return runAutoremove(context.Background(), false)
 }
 
 func journalVacuum(out io.Writer) error {
-	cmd := exec.Command("journalctl", "--vacuum-size=500M")
-	cmd.Stdout = out
-	cmd.Stderr = out
-	return cmd.Run()
+	result, err := optimizeRunner.Run(context.Background(), "journalctl", "--vacuum-size=500M")
+	_, _ = out.Write(result.Stdout)
+	_, _ = out.Write(result.Stderr)
+	return err
 }
 
 func updateCaches(out io.Writer) error {
+	var errs []error
 	for _, args := range [][]string{
 		{"update-mime-database", "/usr/share/mime"},
 		{"fc-cache", "-f"},
 	} {
-		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdout = out
-		cmd.Stderr = out
-		_ = cmd.Run() // best-effort
+		result, err := optimizeRunner.Run(context.Background(), args[0], args[1:]...)
+		_, _ = out.Write(result.Stdout)
+		_, _ = out.Write(result.Stderr)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", args[0], err))
+		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+func stepErrors(results []StepResult) error {
+	var errs []error
+	for _, result := range results {
+		if result.Status == StepFailed && result.Err != nil {
+			errs = append(errs, fmt.Errorf("optimize step %s: %w", result.ID, result.Err))
+		}
+	}
+	return errors.Join(errs...)
 }

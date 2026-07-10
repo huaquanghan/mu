@@ -35,7 +35,10 @@ func TestUserCacheTarget_skipsDenylisted(t *testing.T) {
 	}
 
 	target := userCacheTarget()
-	sz := target.Scan()
+	sz, err := target.Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
 	// only junk file size should count
 	if sz < int64(len("junk data here")) {
 		t.Fatalf("expected scan to include junk size, got %d", sz)
