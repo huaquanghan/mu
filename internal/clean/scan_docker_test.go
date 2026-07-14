@@ -20,8 +20,8 @@ func TestDockerTarget_isOptIn(t *testing.T) {
 
 func TestParseDockerBuildCacheSizes(t *testing.T) {
 	fixture := "not-json\n" +
-		`{"Type":"Images","ReclaimableSize":"9GB"}` + "\n" +
-		`{"Type":"Build Cache","ReclaimableSize":"1.5GB"}` + "\n"
+		`{"Type":"Images","TotalCount":"4","Active":"2","Size":"12.3GB","Reclaimable":"9GB (73%)"}` + "\n" +
+		`{"Type":"Build Cache","TotalCount":"8","Active":"0","Size":"1.5GB","Reclaimable":"1.5GB"}` + "\n"
 	if got := parseDockerBuildCacheSize(fixture); got != int64(1.5*1024*1024*1024) {
 		t.Fatalf("size=%d", got)
 	}
@@ -36,7 +36,7 @@ func TestDockerTargetPropagatesScanAndExecuteFailures(t *testing.T) {
 	failed := false
 	cleanRunner = cleanRunnerFunc{run: func(_ context.Context, _ string, args ...string) (command.Result, error) {
 		if len(args) > 0 && args[0] == "system" {
-			return command.Result{Stdout: []byte(`{"Type":"Build Cache","ReclaimableSize":"2MB"}`)}, nil
+			return command.Result{Stdout: []byte(`{"Type":"Build Cache","TotalCount":"1","Active":"0","Size":"2MB","Reclaimable":"2MB"}`)}, nil
 		}
 		if failed {
 			return command.Result{}, errors.New("docker failed")

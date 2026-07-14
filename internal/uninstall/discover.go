@@ -2,6 +2,7 @@ package uninstall
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -120,15 +121,15 @@ func snapInstalledKB(name string) int64 {
 
 // Discover returns all installed packages (APT + Snap) sorted by name.
 func Discover() ([]Package, error) {
-	apt, err := DiscoverAPT()
-	if err != nil {
-		return nil, err
-	}
-	snap, err := DiscoverSnap()
-	if err != nil {
-		return nil, err
-	}
+	apt, aptErr := DiscoverAPT()
+	snap, snapErr := DiscoverSnap()
 	all := append(apt, snap...)
 	sort.Slice(all, func(i, j int) bool { return all[i].Name < all[j].Name })
-	return all, nil
+	if aptErr != nil {
+		aptErr = fmt.Errorf("apt discovery: %w", aptErr)
+	}
+	if snapErr != nil {
+		snapErr = fmt.Errorf("snap discovery: %w", snapErr)
+	}
+	return all, errors.Join(aptErr, snapErr)
 }

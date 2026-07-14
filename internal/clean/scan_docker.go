@@ -13,8 +13,8 @@ const dockerSocket = "/var/run/docker.sock"
 
 // dockerDfLine represents one line from `docker system df --format '{{json .}}'`.
 type dockerDfLine struct {
-	Type            string `json:"Type"`
-	ReclaimableSize string `json:"ReclaimableSize"`
+	Type        string `json:"Type"`
+	Reclaimable string `json:"Reclaimable"`
 }
 
 func parseDockerBuildCacheSize(jsonLines string) int64 {
@@ -30,7 +30,7 @@ func parseDockerBuildCacheSize(jsonLines string) int64 {
 		if entry.Type != "Build Cache" {
 			continue
 		}
-		return parseDockerSize(entry.ReclaimableSize)
+		return parseDockerSize(entry.Reclaimable)
 	}
 	return 0
 }

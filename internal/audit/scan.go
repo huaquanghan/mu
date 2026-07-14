@@ -27,16 +27,17 @@ type TargetSize struct {
 
 // Snapshot is raw data collected before rule evaluation.
 type Snapshot struct {
-	Targets         []TargetSize
-	Health          int
-	DiskFreePctRoot float64
-	MemAvailPct     float64
-	SwapUsedPct     float64
-	JournalBytes    int64
-	AptAutoremoveN  int
-	CPUPercent      float64
-	ScanErrors      []string
-	Warnings        []string
+	Targets           []TargetSize
+	Health            int
+	DiskFreePctRoot   float64
+	MemAvailPct       float64
+	SwapUsedPct       float64
+	JournalBytes      int64
+	AptAutoremoveN    int
+	CPUPercent        float64
+	ScanErrors        []string
+	Warnings          []string
+	rootDiskAvailable bool
 }
 
 // ProgressFunc is called with a short status line during collection.
@@ -116,6 +117,7 @@ func CollectContext(ctx context.Context, progress ProgressFunc) Snapshot {
 	for _, d := range disks {
 		if d.Mount == "/" && d.TotalBytes > 0 {
 			snap.DiskFreePctRoot = float64(d.FreeBytes) / float64(d.TotalBytes) * 100
+			snap.rootDiskAvailable = true
 			rootFound = true
 		}
 	}
@@ -152,8 +154,8 @@ func BuildFindings(snap Snapshot, includePreselect []string) []Finding {
 	journalFindingEmitted := false
 
 	// Disk pressure (info/banner style; may boost clean defaults)
-	diskCritical := snap.DiskFreePctRoot < 10
-	diskWarning := snap.DiskFreePctRoot < 20 && !diskCritical
+	diskCritical := snap.rootDiskAvailable && snap.DiskFreePctRoot < 10
+	diskWarning := snap.rootDiskAvailable && snap.DiskFreePctRoot < 20 && !diskCritical
 	if diskCritical {
 		findings = append(findings, Finding{
 			ID:         "health:disk-root",

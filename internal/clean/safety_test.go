@@ -88,8 +88,6 @@ func TestUserCacheRejectsTopLevelSymlinkInDryRun(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CACHE_HOME", cacheRoot)
 	t.Setenv("XDG_CONFIG_HOME", configRoot)
-	utils.ResetWhitelistCacheForTest()
-	t.Cleanup(utils.ResetWhitelistCacheForTest)
 	if err := os.MkdirAll(cacheRoot, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -143,8 +141,6 @@ func TestRunFailsClosedOnMalformedConfigBeforeScanning(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configRoot, "mu", "config.toml"), []byte("broken = ["), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	utils.ResetWhitelistCacheForTest()
-	t.Cleanup(utils.ResetWhitelistCacheForTest)
 	if err := Run(Options{DryRun: true}); err == nil || !strings.Contains(err.Error(), "invalid mu configuration") {
 		t.Fatalf("expected config error, got %v", err)
 	}
@@ -166,7 +162,7 @@ func TestRunDryRunCompletesWithReadOnlyScanners(t *testing.T) {
 			return "/usr/bin/" + file, nil
 		},
 		run: func(_ context.Context, name string, args ...string) (command.Result, error) {
-			if name == "journalctl" {
+			if name == "env" && slices.Equal(args, []string{"LC_ALL=C", "journalctl", "--disk-usage"}) {
 				return command.Result{Stdout: []byte("Archived and active journals take up 12.0M in the file system.\n")}, nil
 			}
 			if name == "apt-get" {
@@ -183,7 +179,7 @@ func TestRunDryRunCompletesWithReadOnlyScanners(t *testing.T) {
 
 func TestSystemTargetsUseRunnerAndPropagateErrors(t *testing.T) {
 	cleanRunner = cleanRunnerFunc{run: func(_ context.Context, name string, args ...string) (command.Result, error) {
-		if name == "journalctl" && len(args) > 0 && args[0] == "--disk-usage" {
+		if name == "env" && slices.Equal(args, []string{"LC_ALL=C", "journalctl", "--disk-usage"}) {
 			return command.Result{Stdout: []byte("Archived and active journals take up 1.5G in the file system.\n")}, nil
 		}
 		return command.Result{}, errors.New("command failed")
@@ -263,5 +259,57 @@ func TestJournalSizeOptionalAndParseErrors(t *testing.T) {
 	t.Cleanup(func() { cleanRunner = command.ExecRunner{} })
 	if _, err := JournalSize(); err == nil {
 		t.Fatal("expected parse error")
+	}
+}
+
+func TestJournalTargetUsesSudoOnlyForRealVacuum(t *testing.T) {
+	var calls [][]string
+	cleanRunner = cleanRunnerFunc{run: func(_ context.Context, name string, args ...string) (command.Result, error) {
+		calls = append(calls, append([]string{name}, args...))
+		return command.Result{}, nil
+	}}
+	t.Cleanup(func() { cleanRunner = command.ExecRunner{} })
+	target := journalLogsTarget()
+	if !target.RequiresSudo {
+		t.Fatal("journal target must advertise sudo")
+	}
+	if err := target.Execute(true); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 0 {
+		t.Fatalf("dry-run executed command: %v", calls)
+	}
+	if err := target.Execute(false); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"sudo", "journalctl", "--vacuum-time=30d"}
+	if len(calls) != 1 || !slices.Equal(calls[0], want) {
+		t.Fatalf("calls=%v want=%v", calls, want)
+	}
+}
+
+func TestJournalSizeForcesCLocale(t *testing.T) {
+	var call []string
+	cleanRunner = cleanRunnerFunc{run: func(_ context.Context, name string, args ...string) (command.Result, error) {
+		call = append([]string{name}, args...)
+		return command.Result{Stdout: []byte("Archived and active journals take up 2.0M in the file system.\n")}, nil
+	}}
+	t.Cleanup(func() { cleanRunner = command.ExecRunner{} })
+	if size, err := JournalSize(); err != nil || size != 2*1024*1024 {
+		t.Fatalf("size=%d err=%v", size, err)
+	}
+	want := []string{"env", "LC_ALL=C", "journalctl", "--disk-usage"}
+	if !slices.Equal(call, want) {
+		t.Fatalf("call=%v want=%v", call, want)
+	}
+}
+
+func TestUserCacheScanAllowsMissingRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "missing-cache"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	if size, err := userCacheTarget().Scan(); err != nil || size != 0 {
+		t.Fatalf("size=%d err=%v", size, err)
 	}
 }

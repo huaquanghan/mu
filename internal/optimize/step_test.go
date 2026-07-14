@@ -13,7 +13,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/huaquanghan/mu/internal/clean"
 	"github.com/huaquanghan/mu/internal/command"
-	"github.com/huaquanghan/mu/internal/utils"
 )
 
 type optimizeRunnerFunc func(context.Context, string, ...string) (command.Result, error)
@@ -81,10 +80,10 @@ func TestOptimizeModelStopsAfterActiveStepAndSkipsRemaining(t *testing.T) {
 }
 
 func TestUpdateCachesAggregatesFailuresAndContinues(t *testing.T) {
-	var calls []string
-	optimizeRunner = optimizeRunnerFunc(func(_ context.Context, name string, _ ...string) (command.Result, error) {
-		calls = append(calls, name)
-		if name == "update-mime-database" {
+	var calls [][]string
+	optimizeRunner = optimizeRunnerFunc(func(_ context.Context, name string, args ...string) (command.Result, error) {
+		calls = append(calls, append([]string{name}, args...))
+		if name == "sudo" {
 			return command.Result{}, errors.New("mime failed")
 		}
 		return command.Result{}, nil
@@ -94,7 +93,8 @@ func TestUpdateCachesAggregatesFailuresAndContinues(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "mime failed") {
 		t.Fatalf("expected cache error, got %v", err)
 	}
-	if !slices.Equal(calls, []string{"update-mime-database", "fc-cache"}) {
+	want := [][]string{{"sudo", "update-mime-database", "/usr/share/mime"}, {"fc-cache", "-f"}}
+	if len(calls) != len(want) || !slices.Equal(calls[0], want[0]) || !slices.Equal(calls[1], want[1]) {
 		t.Fatalf("independent step did not continue: %v", calls)
 	}
 }
@@ -115,8 +115,6 @@ func TestRunStepFailsClosedOnMalformedConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "mu", "config.toml"), []byte("broken = ["), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	utils.ResetWhitelistCacheForTest()
-	t.Cleanup(utils.ResetWhitelistCacheForTest)
 	if _, err := RunStep("caches", Options{}, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "invalid mu configuration") {
 		t.Fatalf("expected fail-closed config error, got %v", err)
 	}
@@ -142,13 +140,13 @@ func TestRunReturnsNonzeroAfterIndependentStepFailure(t *testing.T) {
 }
 
 func TestAptAndJournalStepsUseInjectedRunners(t *testing.T) {
-	var calls []string
-	optimizeRunner = optimizeRunnerFunc(func(_ context.Context, name string, _ ...string) (command.Result, error) {
-		calls = append(calls, name)
+	var calls [][]string
+	optimizeRunner = optimizeRunnerFunc(func(_ context.Context, name string, args ...string) (command.Result, error) {
+		calls = append(calls, append([]string{name}, args...))
 		return command.Result{Stdout: []byte("ok\n")}, nil
 	})
 	runAutoremove = func(context.Context, bool) error {
-		calls = append(calls, "autoremove")
+		calls = append(calls, []string{"autoremove"})
 		return nil
 	}
 	t.Cleanup(func() {
@@ -162,7 +160,12 @@ func TestAptAndJournalStepsUseInjectedRunners(t *testing.T) {
 	if err := journalVacuum(&out); err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(calls, []string{"sudo", "autoremove", "journalctl"}) {
+	want := [][]string{
+		{"sudo", "apt-get", "update"},
+		{"autoremove"},
+		{"sudo", "journalctl", "--vacuum-size=500M"},
+	}
+	if len(calls) != len(want) || !slices.Equal(calls[0], want[0]) || !slices.Equal(calls[1], want[1]) || !slices.Equal(calls[2], want[2]) {
 		t.Fatalf("calls=%v", calls)
 	}
 }

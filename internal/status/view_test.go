@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestUsageColorThresholds(t *testing.T) {
@@ -62,18 +64,6 @@ func TestMetricBarWidthAndFill(t *testing.T) {
 	}
 }
 
-func TestClampBarWidth(t *testing.T) {
-	if got := clampBarWidth(0); got < 10 || got > 40 {
-		t.Fatalf("default width out of range: %d", got)
-	}
-	if got := clampBarWidth(20); got != 10 {
-		t.Fatalf("narrow terminal: got %d want 10", got)
-	}
-	if got := clampBarWidth(200); got != 40 {
-		t.Fatalf("wide terminal: got %d want 40", got)
-	}
-}
-
 func TestRenderDashboardSamplingAndSwapNone(t *testing.T) {
 	m := Model{
 		width:    80,
@@ -116,7 +106,7 @@ func TestRenderDashboardCPUReadyAndDisks(t *testing.T) {
 			{Mount: "/very/long/mount/path/name", TotalBytes: 2000, FreeBytes: 1000},
 		},
 		netRates: map[string]NetRate{
-			"eth0": {RxBytesPerSec: 1024, TxBytesPerSec: 512},
+			"eth0":  {RxBytesPerSec: 1024, TxBytesPerSec: 512},
 			"wlan0": {},
 		},
 		scanErrors: []string{"disk: permission denied"},
@@ -140,15 +130,46 @@ func TestRenderDashboardCPUReadyAndDisks(t *testing.T) {
 	}
 }
 
-func TestTruncateRunes(t *testing.T) {
-	if got := truncateRunes("hello", 10); got != "hello" {
+func TestTruncateWidth(t *testing.T) {
+	if got := truncateWidth("hello", 10); got != "hello" {
 		t.Fatalf("short: %q", got)
 	}
-	if got := truncateRunes("abcdefghij", 5); utf8.RuneCountInString(got) != 5 {
-		t.Fatalf("truncated length: %q", got)
+	if got := truncateWidth("界界界界", 5); lipgloss.Width(got) != 5 {
+		t.Fatalf("truncated display width: %q (%d)", got, lipgloss.Width(got))
 	}
-	if !strings.HasSuffix(truncateRunes("abcdefghij", 5), "…") {
-		t.Fatalf("expected ellipsis: %q", truncateRunes("abcdefghij", 5))
+	if !strings.Contains(truncateWidth("界界界界", 5), "…") {
+		t.Fatalf("expected ellipsis: %q", truncateWidth("界界界界", 5))
+	}
+}
+
+func TestRenderDashboardFitsNarrowTerminalWidths(t *testing.T) {
+	base := Model{
+		cpuReady: true,
+		cpu:      42.5,
+		health:   50,
+		mem: MemStats{
+			TotalKB:     16 * 1024 * 1024,
+			AvailableKB: 4 * 1024 * 1024,
+			SwapTotalKB: 8 * 1024 * 1024,
+			SwapFreeKB:  2 * 1024 * 1024,
+		},
+		disks: []DiskStat{
+			{Mount: "/", TotalBytes: 1000, FreeBytes: 400},
+			{Mount: "/dữ-liệu/非常に長いマウント名", TotalBytes: 2000, FreeBytes: 1000},
+		},
+		netRates: map[string]NetRate{
+			"very-long-network-interface": {RxBytesPerSec: 1024 * 1024, TxBytesPerSec: 512 * 1024},
+		},
+		scanErrors: []string{"disk: permission denied on /dữ-liệu/非常に長いマウント名"},
+	}
+	for _, width := range []int{20, 40, 57, 80} {
+		m := base
+		m.width = width
+		for lineNo, line := range strings.Split(renderDashboard(m), "\n") {
+			if got := lipgloss.Width(line); got > width {
+				t.Errorf("width=%d line=%d got=%d: %q", width, lineNo+1, got, line)
+			}
+		}
 	}
 }
 

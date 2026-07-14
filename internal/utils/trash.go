@@ -51,7 +51,7 @@ func (e *TrashRecoveryError) Unwrap() error { return e.MetadataErr }
 
 // SafeDelete moves path to trash (via gio or a FreeDesktop fallback).
 func SafeDelete(path string, dryRun bool) error {
-	wl, err := getWhitelist()
+	wl, err := LoadWhitelist()
 	if err != nil {
 		return fmt.Errorf("invalid mu configuration: %w", err)
 	}
@@ -99,10 +99,14 @@ func moveToTrash(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(location.FilesDir, 0o700); err != nil {
+	uid := os.Getuid()
+	if err := ensurePrivateTrashDir(filepath.Dir(location.FilesDir), uid); err != nil {
 		return "", err
 	}
-	if err := os.MkdirAll(location.InfoDir, 0o700); err != nil {
+	if err := ensurePrivateTrashDir(location.FilesDir, uid); err != nil {
+		return "", err
+	}
+	if err := ensurePrivateTrashDir(location.InfoDir, uid); err != nil {
 		return "", err
 	}
 
@@ -216,17 +220,67 @@ func renameNoReplace(oldPath, newPath string) error {
 
 func perFilesystemTrash(mount string, uid int) (string, error) {
 	shared := filepath.Join(mount, ".Trash")
-	if info, err := os.Lstat(shared); err == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 && info.Mode()&os.ModeSticky != 0 {
+	sharedErr := validateSharedTrashDir(shared)
+	if sharedErr == nil {
 		path := filepath.Join(shared, strconv.Itoa(uid))
-		if err := os.MkdirAll(path, 0o700); err == nil {
+		if err := ensurePrivateTrashDir(path, uid); err == nil {
 			return path, nil
+		} else {
+			sharedErr = err
 		}
 	}
 	private := filepath.Join(mount, ".Trash-"+strconv.Itoa(uid))
-	if err := os.MkdirAll(private, 0o700); err != nil {
-		return "", fmt.Errorf("create filesystem trash %s: %w", private, err)
+	if err := ensurePrivateTrashDir(private, uid); err != nil {
+		return "", errors.Join(
+			fmt.Errorf("shared filesystem trash %s: %w", shared, sharedErr),
+			fmt.Errorf("private filesystem trash %s: %w", private, err),
+		)
 	}
 	return private, nil
+}
+
+func validateSharedTrashDir(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("must be a directory without symlinks")
+	}
+	if info.Mode()&os.ModeSticky == 0 {
+		return fmt.Errorf("must have the sticky bit set")
+	}
+	return nil
+}
+
+func ensurePrivateTrashDir(path string, uid int) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(path, 0o700); err != nil {
+			if errors.Is(err, os.ErrExist) {
+				return ensurePrivateTrashDir(path, uid)
+			}
+			return fmt.Errorf("create %s: %w", path, err)
+		}
+		if err := os.Chmod(path, 0o700); err != nil {
+			return fmt.Errorf("chmod %s: %w", path, err)
+		}
+		info, err = os.Lstat(path)
+	}
+	if err != nil {
+		return fmt.Errorf("inspect %s: %w", path, err)
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%s must be a directory without symlinks", path)
+	}
+	if info.Mode().Perm() != 0o700 {
+		return fmt.Errorf("%s permissions are %04o, want 0700", path, info.Mode().Perm())
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || int(stat.Uid) != uid {
+		return fmt.Errorf("%s owner does not match uid %d", path, uid)
+	}
+	return nil
 }
 
 func mountPointForPath(path, mountInfoPath string) (string, error) {

@@ -321,7 +321,7 @@ func aptAutoremove(out io.Writer) error {
 }
 
 func journalVacuum(out io.Writer) error {
-	result, err := optimizeRunner.Run(context.Background(), "journalctl", "--vacuum-size=500M")
+	result, err := optimizeRunner.Run(context.Background(), "sudo", "journalctl", "--vacuum-size=500M")
 	_, _ = out.Write(result.Stdout)
 	_, _ = out.Write(result.Stderr)
 	return err
@@ -330,14 +330,14 @@ func journalVacuum(out io.Writer) error {
 func updateCaches(out io.Writer) error {
 	var errs []error
 	for _, args := range [][]string{
-		{"update-mime-database", "/usr/share/mime"},
+		{"sudo", "update-mime-database", "/usr/share/mime"},
 		{"fc-cache", "-f"},
 	} {
 		result, err := optimizeRunner.Run(context.Background(), args[0], args[1:]...)
 		_, _ = out.Write(result.Stdout)
 		_, _ = out.Write(result.Stderr)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", args[0], err))
+			errs = append(errs, fmt.Errorf("%s: %w", strings.Join(args, " "), err))
 		}
 	}
 	return errors.Join(errs...)

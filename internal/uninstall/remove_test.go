@@ -75,8 +75,6 @@ func TestRemoveSelectedDryRunRemovesOnlyManagedUniqueRemnant(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".data"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, ".cache"))
-	utils.ResetWhitelistCacheForTest()
-	t.Cleanup(utils.ResetWhitelistCacheForTest)
 	remnant := filepath.Join(home, ".config", "solo")
 	if err := os.MkdirAll(remnant, 0o700); err != nil {
 		t.Fatal(err)
@@ -157,8 +155,6 @@ func TestUninstallFailsClosedOnMalformedConfig(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte("broken = ["), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	utils.ResetWhitelistCacheForTest()
-	t.Cleanup(utils.ResetWhitelistCacheForTest)
 	if err := Run(Options{DryRun: true}); err == nil || !strings.Contains(err.Error(), "invalid mu configuration") {
 		t.Fatalf("expected config error, got %v", err)
 	}

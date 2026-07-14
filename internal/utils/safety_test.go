@@ -107,8 +107,6 @@ func TestMalformedWhitelistFailsClosedEvenInDryRun(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte("not = [valid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	ResetWhitelistCacheForTest()
-	t.Cleanup(ResetWhitelistCacheForTest)
 	path := filepath.Join(t.TempDir(), "candidate")
 	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
 		t.Fatal(err)

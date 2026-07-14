@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/BurntSushi/toml"
 )
@@ -88,33 +87,6 @@ func validateWhitelistOverride(override *Whitelist) error {
 	return nil
 }
 
-var (
-	wlOnce   sync.Once
-	wlCached *Whitelist
-	wlErr    error
-)
-
-// getWhitelist returns a process-wide cached whitelist (defaults + user config).
-func getWhitelist() (*Whitelist, error) {
-	wlOnce.Do(func() {
-		wl, err := LoadWhitelist()
-		if err != nil {
-			wlErr = err
-			return
-		}
-		wlCached = wl
-	})
-	return wlCached, wlErr
-}
-
-// ResetWhitelistCacheForTest clears the cached whitelist so tests can inject config.
-// Not for production use.
-func ResetWhitelistCacheForTest() {
-	wlOnce = sync.Once{}
-	wlCached = nil
-	wlErr = nil
-}
-
 // IsWhitelisted returns true if path is protected by the system or user whitelist.
 func IsWhitelisted(path string, wl *Whitelist) bool {
 	if IsProtected(path) {
@@ -126,7 +98,7 @@ func IsWhitelisted(path string, wl *Whitelist) bool {
 	clean := filepath.Clean(path)
 	for _, p := range wl.ProtectedPaths.System {
 		pp := filepath.Clean(p)
-		if clean == pp || strings.HasPrefix(clean, pp+"/") {
+		if clean == pp || pp != "/" && (pathContains(pp, clean) || pathContains(clean, pp)) {
 			return true
 		}
 	}

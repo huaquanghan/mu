@@ -13,8 +13,6 @@ func TestUserCacheTarget_skipsDenylisted(t *testing.T) {
 	cacheHome := filepath.Join(tmp, ".cache")
 	t.Setenv("XDG_CACHE_HOME", cacheHome)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, ".config"))
-	utils.ResetWhitelistCacheForTest()
-	t.Cleanup(utils.ResetWhitelistCacheForTest)
 
 	// Safe-to-delete junk
 	junk := filepath.Join(cacheHome, "some-app")

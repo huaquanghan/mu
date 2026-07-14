@@ -26,6 +26,20 @@ func TestIsWhitelisted_SafePaths(t *testing.T) {
 	}
 }
 
+func TestIsWhitelistedRejectsProtectedPathOverlap(t *testing.T) {
+	wl := defaultWhitelist()
+	wl.ProtectedPaths.System = append(wl.ProtectedPaths.System, "/home/user/.cache/app/keep")
+	for _, path := range []string{
+		"/home/user/.cache/app/keep",
+		"/home/user/.cache/app/keep/data",
+		"/home/user/.cache/app",
+	} {
+		if !IsWhitelisted(path, wl) {
+			t.Errorf("expected overlapping path %s to be protected", path)
+		}
+	}
+}
+
 func TestLoadWhitelist_NoUserConfig(t *testing.T) {
 	// Override XDG_CONFIG_HOME to a temp dir with no config
 	tmp, err := os.MkdirTemp("", "mu-wl-test-*")

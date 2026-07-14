@@ -26,8 +26,6 @@ func TestSafeDeleteFallbackAndMissingPath(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".data"))
-	ResetWhitelistCacheForTest()
-	t.Cleanup(ResetWhitelistCacheForTest)
 	trashRunner = trashRunnerStub{lookErr: errors.New("gio missing")}
 	t.Cleanup(func() { trashRunner = command.ExecRunner{} })
 	path := filepath.Join(home, "trash-me")
@@ -50,8 +48,6 @@ func TestSafeDeleteFallsBackWhenGioFails(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".data"))
-	ResetWhitelistCacheForTest()
-	t.Cleanup(ResetWhitelistCacheForTest)
 	trashRunner = trashRunnerStub{runErr: errors.New("gio failure")}
 	t.Cleanup(func() { trashRunner = command.ExecRunner{} })
 	path := filepath.Join(home, "fallback")
@@ -123,11 +119,15 @@ func TestMountPointAndSharedFilesystemTrash(t *testing.T) {
 		t.Fatalf("mount=%q err=%v", got, err)
 	}
 	shared := filepath.Join(mount, ".Trash")
-	if err := os.Mkdir(shared, 0o777|os.ModeSticky); err != nil {
+	if err := os.Mkdir(shared, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	trash, err := perFilesystemTrash(mount, 1234)
-	if err != nil || trash != filepath.Join(shared, "1234") {
+	if err := os.Chmod(shared, 0o777|os.ModeSticky); err != nil {
+		t.Fatal(err)
+	}
+	uid := os.Getuid()
+	trash, err := perFilesystemTrash(mount, uid)
+	if err != nil || trash != filepath.Join(shared, stringInt(uid)) {
 		t.Fatalf("trash=%q err=%v", trash, err)
 	}
 	if _, err := deviceID(mount); err != nil {

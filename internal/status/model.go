@@ -53,10 +53,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tickMsg:
 		m.scanErrors = nil
+		m.cpuReady = false
 		cpuAvailable := false
 		memAvailable := false
 		// 1. Read CPU; compute percent from prev
-		curr, err := ReadCPU()
+		curr, err := readCPUFn()
 		if err == nil {
 			if m.prevCPU != (CPUSample{}) {
 				m.cpu = CPUPercent(m.prevCPU, curr)
@@ -65,10 +66,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.prevCPU = curr
 		} else {
+			m.cpu = 0
+			m.prevCPU = CPUSample{}
 			m.scanErrors = append(m.scanErrors, "cpu: "+err.Error())
 		}
 		// 2. Read memory
-		mem, memErr := ReadMemory()
+		mem, memErr := readMemoryFn()
 		if memErr != nil {
 			m.scanErrors = append(m.scanErrors, "memory: "+memErr.Error())
 		} else {
@@ -76,13 +79,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			memAvailable = true
 		}
 		// 3. Read disk
-		disks, diskErr := ReadDisk()
+		disks, diskErr := readDiskFn()
 		m.disks = disks
 		if diskErr != nil {
 			m.scanErrors = append(m.scanErrors, "disk: "+diskErr.Error())
 		}
 		// 4. Read network; compute rates
-		currNets, err := ReadNetwork()
+		currNets, err := readNetworkFn()
 		if err == nil {
 			elapsed := time.Since(m.prevTime).Seconds()
 			if elapsed <= 0 {

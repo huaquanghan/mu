@@ -65,8 +65,9 @@ func TestBuildFindings_diskCriticalSelectsClean(t *testing.T) {
 		Targets: []TargetSize{
 			{ID: "thumbnails", Label: "Thumbs", Bytes: 100 * 1024 * 1024, OptIn: false},
 		},
-		Health:          30,
-		DiskFreePctRoot: 8,
+		Health:            30,
+		DiskFreePctRoot:   8,
+		rootDiskAvailable: true,
 	}
 	fs := BuildFindings(snap, nil)
 	var disk, thumbs *Finding
@@ -168,5 +169,24 @@ func TestBuildReportCarriesScanErrorsAdditively(t *testing.T) {
 	report := BuildReport(Snapshot{Health: 50, DiskFreePctRoot: 30, ScanErrors: []string{"disk unavailable"}}, nil)
 	if len(report.ScanErrors) != 1 || report.ScanErrors[0] != "disk unavailable" {
 		t.Fatalf("scan errors = %v", report.ScanErrors)
+	}
+}
+
+func TestMissingRootDiskDoesNotCreateCriticalFinding(t *testing.T) {
+	report := BuildReport(Snapshot{
+		Health:          0,
+		DiskFreePctRoot: 0,
+		ScanErrors:      []string{"disk: root filesystem metric unavailable"},
+	}, nil)
+	if report.DiskFreePctRoot != 0 {
+		t.Fatalf("disk_free_pct_root=%v", report.DiskFreePctRoot)
+	}
+	for _, finding := range report.Findings {
+		if finding.ID == "health:disk-root" || finding.Severity == SeverityCritical {
+			t.Fatalf("missing metric produced false critical finding: %+v", finding)
+		}
+	}
+	if code := ExitCodeForReport(report.Findings); code == 2 {
+		t.Fatalf("missing metric produced critical exit code %d", code)
 	}
 }

@@ -79,10 +79,6 @@ smoke: build
 # ── Dev ───────────────────────────────────────────────────────────────────────
 
 run: build
-	@if [ "$$(id -u)" -ne 0 ]; then \
-		echo "Error: run with sudo: sudo make run"; \
-		exit 1; \
-	fi
 	@$(BUILD_DIR)/$(BINARY)
 
 lint:

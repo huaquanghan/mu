@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -11,7 +13,10 @@ import (
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
-type loadedMsg struct{ pkgs []Package }
+type loadedMsg struct {
+	pkgs []Package
+	err  error
+}
 
 type phase string
 
@@ -32,6 +37,7 @@ type uninstallModel struct {
 	items         []pkgItem // filtered view
 	query         string
 	loaded        bool
+	discoveryErr  error
 	cursor        int
 	selected      map[string]bool
 	opts          Options
@@ -67,14 +73,11 @@ func (m uninstallModel) Init() tea.Cmd {
 		tickCmd(),
 		func() tea.Msg {
 			pkgs, err := Discover()
-			if err != nil {
-				return loadedMsg{nil}
-			}
 			for i := range pkgs {
 				pkgs[i].RemnantsFound = FindRemnants(pkgs[i].Name)
 				pkgs[i].RemnantsKB = RemnantSize(pkgs[i].RemnantsFound) / 1024
 			}
-			return loadedMsg{pkgs}
+			return loadedMsg{pkgs: pkgs, err: err}
 		},
 	)
 }
@@ -111,6 +114,7 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.allItems = items
 		m.loaded = true
+		m.discoveryErr = msg.err
 		m.items = filterItems(m.allItems, m.query)
 		m.cursor = 0
 		m.scrollOff = 0
@@ -131,18 +135,19 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "esc":
 			return m, tea.Quit
 
 		case "backspace":
 			if len(m.query) > 0 {
-				m.query = m.query[:len(m.query)-1]
+				_, size := utf8.DecodeLastRuneInString(m.query)
+				m.query = m.query[:len(m.query)-size]
 				m.items = filterItems(m.allItems, m.query)
 				m.cursor = 0
 				m.scrollOff = 0
 			}
 
-		case "up", "k":
+		case "up":
 			if m.cursor > 0 {
 				m.cursor--
 				if m.cursor < m.scrollOff {
@@ -150,7 +155,7 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-		case "down", "j":
+		case "down":
 			if m.cursor < len(m.items)-1 {
 				m.cursor++
 				visH := m.listHeight()
@@ -187,8 +192,14 @@ func (m uninstallModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		default:
-			if len(msg.Runes) > 0 {
-				m.query += string(msg.Runes)
+			var printable []rune
+			for _, r := range msg.Runes {
+				if unicode.IsPrint(r) {
+					printable = append(printable, r)
+				}
+			}
+			if len(printable) > 0 {
+				m.query += string(printable)
 				m.items = filterItems(m.allItems, m.query)
 				m.cursor = 0
 				m.scrollOff = 0
@@ -251,8 +262,15 @@ func (m uninstallModel) View() string {
 		var sb strings.Builder
 		sb.WriteString("\n\n" + header + "\n\n")
 		sb.WriteString(searchLine + "\n\n")
+		if m.discoveryErr != nil {
+			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).
+				Render("  Discovery warning: "+m.discoveryErr.Error()) + "\n\n")
+		}
 
 		switch {
+		case m.loaded && len(m.allItems) == 0 && m.discoveryErr != nil:
+			sb.WriteString(lipgloss.NewStyle().Faint(true).
+				Render("  No package source could be loaded.") + "\n")
 		case m.query == "":
 			sb.WriteString(lipgloss.NewStyle().Faint(true).
 				Render("  Type to search installed packages...") + "\n")
@@ -291,7 +309,7 @@ func (m uninstallModel) View() string {
 			}
 		}
 
-		bottomHint := lipgloss.NewStyle().Padding(0, 2).Render("Space: select  •  Enter: confirm  •  q: quit")
+		bottomHint := lipgloss.NewStyle().Padding(0, 2).Render("Type: search  •  ↑/↓: navigate  •  Space: select  •  Esc: quit")
 		sb.WriteString("\n\n\n" + bottomHint + "\n")
 		return sb.String()
 

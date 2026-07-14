@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 const (
@@ -57,23 +57,6 @@ func healthLabel(score int) string {
 	}
 }
 
-// clampBarWidth picks a bar width from terminal width.
-func clampBarWidth(termWidth int) int {
-	if termWidth <= 0 {
-		termWidth = defaultTerm
-	}
-	// left padding (2) + label (~14) + spaces + trailing values (~28)
-	const fixed = 2 + diskLabelW + 4 + 28
-	w := termWidth - fixed
-	if w < 10 {
-		return 10
-	}
-	if w > 40 {
-		return 40
-	}
-	return w
-}
-
 // metricBar renders a solid usage bar at pct (0–100).
 func metricBar(pct float64, width int, fullColor string) string {
 	if width < 1 {
@@ -99,24 +82,52 @@ func metricBar(pct float64, width int, fullColor string) string {
 }
 
 func padLabel(label string, width int) string {
-	if utf8.RuneCountInString(label) >= width {
+	label = truncateWidth(label, width)
+	if lipgloss.Width(label) >= width {
 		return label
 	}
-	return label + strings.Repeat(" ", width-utf8.RuneCountInString(label))
+	return label + strings.Repeat(" ", width-lipgloss.Width(label))
 }
 
-func truncateRunes(s string, max int) string {
+func truncateWidth(s string, max int) string {
 	if max <= 0 {
 		return ""
 	}
-	r := []rune(s)
-	if len(r) <= max {
-		return s
+	return ansi.Truncate(s, max, "…")
+}
+
+func metricLine(label string, preferredLabelWidth int, pct float64, color, wideText, primaryText string, width int) string {
+	if width <= 0 {
+		width = defaultTerm
 	}
-	if max == 1 {
-		return "…"
+	labelWidth := preferredLabelWidth
+	maxLabelWidth := width - 3 - lipgloss.Width(primaryText)
+	if labelWidth > maxLabelWidth {
+		labelWidth = maxLabelWidth
 	}
-	return string(r[:max-1]) + "…"
+	if labelWidth < 1 {
+		labelWidth = 1
+	}
+	prefix := "  " + padLabel(label, labelWidth)
+	withBar := func(text string) (string, bool) {
+		barWidth := width - lipgloss.Width(prefix) - 3 - lipgloss.Width(text)
+		if barWidth > 40 {
+			barWidth = 40
+		}
+		if barWidth < 1 {
+			return "", false
+		}
+		return prefix + " " + metricBar(pct, barWidth, color) + "  " + text, true
+	}
+	if line, ok := withBar(wideText); ok {
+		return line
+	}
+	if wideText != primaryText {
+		if line, ok := withBar(primaryText); ok {
+			return line
+		}
+	}
+	return truncateWidth(prefix+" "+primaryText, width)
 }
 
 // renderDashboard builds the full status TUI view.
@@ -125,8 +136,6 @@ func renderDashboard(m Model) string {
 	if width <= 0 {
 		width = defaultTerm
 	}
-	barW := clampBarWidth(width)
-
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorCyan))
 	faintStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorFaint))
 	sectionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colorFaint))
@@ -135,18 +144,17 @@ func renderDashboard(m Model) string {
 
 	// Health
 	hColor := healthColor(m.health)
-	healthBar := metricBar(float64(m.health), barW, hColor)
 	healthText := lipgloss.NewStyle().Foreground(lipgloss.Color(hColor)).Bold(true).
 		Render(fmt.Sprintf("%d/100  %s", m.health, healthLabel(m.health)))
-	healthLine := fmt.Sprintf("  %s %s  %s", padLabel("Health", labelWidth), healthBar, healthText)
+	healthLine := metricLine("Health", labelWidth, float64(m.health), hColor, healthText, healthText, width)
 
 	// CPU
 	var cpuLine string
 	if !m.cpuReady {
 		cpuLine = fmt.Sprintf("  %s %s", padLabel("CPU", labelWidth), faintStyle.Render("sampling…"))
 	} else {
-		cpuBar := metricBar(m.cpu, barW, usageColor(m.cpu))
-		cpuLine = fmt.Sprintf("  %s %s  %.1f%%", padLabel("CPU", labelWidth), cpuBar, m.cpu)
+		primary := fmt.Sprintf("%.1f%%", m.cpu)
+		cpuLine = metricLine("CPU", labelWidth, m.cpu, usageColor(m.cpu), primary, primary, width)
 	}
 
 	// RAM
@@ -156,9 +164,9 @@ func renderDashboard(m Model) string {
 	} else {
 		usedKB := m.mem.TotalKB - m.mem.AvailableKB
 		ramPct := float64(usedKB) / float64(m.mem.TotalKB) * 100
-		ramBar := metricBar(ramPct, barW, usageColor(ramPct))
-		ramLine = fmt.Sprintf("  %s %s  %s / %s  (%.0f%%)",
-			padLabel("RAM", labelWidth), ramBar, humanKB(usedKB), humanKB(m.mem.TotalKB), ramPct)
+		primary := fmt.Sprintf("%.0f%%", ramPct)
+		wide := fmt.Sprintf("%s / %s  (%s)", humanKB(usedKB), humanKB(m.mem.TotalKB), primary)
+		ramLine = metricLine("RAM", labelWidth, ramPct, usageColor(ramPct), wide, primary, width)
 	}
 
 	// Swap
@@ -168,9 +176,9 @@ func renderDashboard(m Model) string {
 	} else {
 		swapUsed := m.mem.SwapTotalKB - m.mem.SwapFreeKB
 		swapPct := float64(swapUsed) / float64(m.mem.SwapTotalKB) * 100
-		swapBar := metricBar(swapPct, barW, usageColor(swapPct))
-		swapLine = fmt.Sprintf("  %s %s  %s / %s  (%.0f%%)",
-			padLabel("Swap", labelWidth), swapBar, humanKB(swapUsed), humanKB(m.mem.SwapTotalKB), swapPct)
+		primary := fmt.Sprintf("%.0f%%", swapPct)
+		wide := fmt.Sprintf("%s / %s  (%s)", humanKB(swapUsed), humanKB(m.mem.SwapTotalKB), primary)
+		swapLine = metricLine("Swap", labelWidth, swapPct, usageColor(swapPct), wide, primary, width)
 	}
 
 	var parts []string
@@ -185,10 +193,9 @@ func renderDashboard(m Model) string {
 				used := d.TotalBytes - d.FreeBytes
 				usedPct = float64(used) / float64(d.TotalBytes) * 100
 			}
-			mount := truncateRunes(d.Mount, diskLabelW)
-			bar := metricBar(usedPct, barW, usageColor(usedPct))
-			parts = append(parts, fmt.Sprintf("  %s %s  used %.0f%%  ·  %s free",
-				padLabel(mount, diskLabelW), bar, usedPct, humanBytes(d.FreeBytes)))
+			primary := fmt.Sprintf("used %.0f%%", usedPct)
+			wide := fmt.Sprintf("%s  ·  %s free", primary, humanBytes(d.FreeBytes))
+			parts = append(parts, metricLine(d.Mount, diskLabelW, usedPct, usageColor(usedPct), wide, primary, width))
 		}
 	}
 
@@ -198,8 +205,8 @@ func renderDashboard(m Model) string {
 		if rate.RxBytesPerSec == 0 && rate.TxBytesPerSec == 0 {
 			continue
 		}
-		netLines = append(netLines, fmt.Sprintf("  %-10s  ↑ %-10s  ↓ %s",
-			iface, humanBytes(rate.TxBytesPerSec)+"/s", humanBytes(rate.RxBytesPerSec)+"/s"))
+		netLines = append(netLines, truncateWidth(fmt.Sprintf("  %-10s  ↑ %-10s  ↓ %s",
+			iface, humanBytes(rate.TxBytesPerSec)+"/s", humanBytes(rate.RxBytesPerSec)+"/s"), width))
 	}
 	sort.Strings(netLines)
 	if len(netLines) > 0 {
@@ -208,10 +215,13 @@ func renderDashboard(m Model) string {
 	}
 
 	for _, scanErr := range m.scanErrors {
-		parts = append(parts, faintStyle.Render("  Unavailable: "+scanErr))
+		parts = append(parts, faintStyle.Render(truncateWidth("  Unavailable: "+scanErr, width)))
 	}
 
 	footer := faintStyle.Render("  q to quit")
 	parts = append(parts, "", "", footer)
+	for i := range parts {
+		parts[i] = truncateWidth(parts[i], width)
+	}
 	return strings.Join(parts, "\n")
 }

@@ -1,6 +1,7 @@
 package uninstall
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -96,5 +97,29 @@ func TestUninstallModelEmptyNoMatchAndNavigationBranches(t *testing.T) {
 	m = updated.(uninstallModel)
 	if m.phase != phaseConfirm || cmd == nil {
 		t.Fatal("q should quit from confirm")
+	}
+}
+
+func TestUninstallSearchTreatsQJKAsTextAndShowsDiscoveryWarning(t *testing.T) {
+	m := newModel(Options{})
+	updated, _ := m.Update(loadedMsg{err: errors.New("APT discovery: unavailable")})
+	m = updated.(uninstallModel)
+	if view := m.View(); !strings.Contains(view, "Discovery warning") || !strings.Contains(view, "No package source could be loaded") {
+		t.Fatalf("missing discovery failure state: %q", view)
+	}
+	for _, key := range []rune{'q', 'j', 'k'} {
+		updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+		m = updated.(uninstallModel)
+		if cmd != nil {
+			t.Fatalf("key %q unexpectedly quit", key)
+		}
+	}
+	if m.query != "qjk" {
+		t.Fatalf("query=%q", m.query)
+	}
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = updated.(uninstallModel)
+	if cmd == nil {
+		t.Fatal("escape should quit search")
 	}
 }

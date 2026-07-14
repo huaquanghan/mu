@@ -48,7 +48,7 @@ mu status | jq '.health'        # JSON when piped
 
 ### `mu` (TUI menu)
 
-Opens an interactive menu with a live system snapshot (CPU, RAM, disk). Select any command with arrow keys or `j/k`. Pressing `q` from any sub-screen returns to the menu.
+Opens an interactive menu with a live system snapshot (CPU, RAM, disk). Select any command with arrow keys or `j/k`. Follow each sub-screen's footer to return to the menu.
 
 ### `mu audit`
 
@@ -78,7 +78,7 @@ Scans and frees disk space across:
 
 ### `mu uninstall`
 
-Type to search installed packages (APT + Snap). Space to select multiple. Shows installed size plus leftover config/cache dirs before you confirm. Confirmation requires selecting YES from a button prompt — the default is NO.
+Type to search installed packages (APT + Snap), including `q`, `j`, and `k`. Use arrow keys to navigate, Space to select multiple, and Esc or Ctrl+C to leave search. Shows installed size plus leftover config/cache dirs before you confirm. Confirmation requires selecting YES from a button prompt — the default is NO.
 
 ### `mu optimize`
 

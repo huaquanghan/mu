@@ -85,6 +85,11 @@ func userCacheTarget() CleanTarget {
 			if err := utils.ValidateCleanupRoot(cacheHome); err != nil {
 				return 0, err
 			}
+			if _, err := os.Lstat(cacheHome); errors.Is(err, os.ErrNotExist) {
+				return 0, nil
+			} else if err != nil {
+				return 0, err
+			}
 			wl, err := utils.LoadWhitelist()
 			if err != nil {
 				return 0, err
@@ -213,8 +218,9 @@ func aptCacheTarget() CleanTarget {
 // journalLogsTarget targets systemd journal logs.
 func journalLogsTarget() CleanTarget {
 	return CleanTarget{
-		ID:    "journal-logs",
-		Label: "Journal Logs",
+		ID:           "journal-logs",
+		Label:        "Journal Logs",
+		RequiresSudo: true,
 		Scan: func() (int64, error) {
 			return JournalSize()
 		},
@@ -223,7 +229,7 @@ func journalLogsTarget() CleanTarget {
 				utils.LogOutcome("journal-vacuum", "30d", "dry-run")
 				return nil
 			}
-			result, err := cleanRunner.Run(context.Background(), "journalctl", "--vacuum-time=30d")
+			result, err := cleanRunner.Run(context.Background(), "sudo", "journalctl", "--vacuum-time=30d")
 			if len(result.Stderr) > 0 {
 				_, _ = os.Stderr.Write(result.Stderr)
 			}
@@ -237,12 +243,12 @@ func journalLogsTarget() CleanTarget {
 }
 
 // JournalSize parses journalctl --disk-usage to get journal size in bytes.
-// Returns 0 if journalctl is unavailable or output cannot be parsed.
+// A missing journalctl is optional; command and parse failures are returned.
 func JournalSize() (int64, error) {
 	if _, err := cleanRunner.LookPath("journalctl"); err != nil {
 		return 0, nil
 	}
-	result, err := cleanRunner.Run(context.Background(), "journalctl", "--disk-usage")
+	result, err := cleanRunner.Run(context.Background(), "env", "LC_ALL=C", "journalctl", "--disk-usage")
 	if err != nil {
 		return 0, err
 	}
