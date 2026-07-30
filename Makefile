@@ -82,7 +82,8 @@ run: build
 	@$(BUILD_DIR)/$(BINARY)
 
 lint:
-	golangci-lint run ./...
+	go vet ./...
+	staticcheck ./...
 
 clean:
 	rm -rf $(BUILD_DIR)
