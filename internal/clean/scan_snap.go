@@ -67,7 +67,7 @@ func snapTarget() CleanTarget {
 			var total int64
 			var scanErrors []error
 			for _, r := range revs {
-				snapPath := fmt.Sprintf("/snap/%s/%s", r.name, r.revision)
+				snapPath := fmt.Sprintf("/var/lib/snapd/snaps/%s_%s.snap", r.name, r.revision)
 				duResult, err := cleanRunner.Run(context.Background(), "du", "-sb", snapPath)
 				if err != nil {
 					scanErrors = append(scanErrors, fmt.Errorf("size %s: %w", snapPath, err))
