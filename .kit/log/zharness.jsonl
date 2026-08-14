@@ -60,3 +60,13 @@
 {"argv":["audit","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T08:03:04Z"}
 {"argv":["preflight","git","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T08:11:47Z"}
 {"argv":["query","check","--latest","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T08:11:51Z"}
+{"argv":["preflight","check","--mode","full","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T09:02:13Z"}
+{"argv":["--help"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T09:02:30Z"}
+{"argv":["changeset","--help"],"error_code":"internal_error","exit":1,"ms":0,"ts":"2026-08-14T09:02:30Z"}
+{"argv":["preflight","git","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T09:02:33Z"}
+{"argv":["db","--help"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T09:02:33Z"}
+{"argv":["db","changeset","--help"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T09:02:35Z"}
+{"argv":["query","check","--latest","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T09:02:39Z"}
+{"argv":["db","changeset","status","--json"],"error_code":"","exit":0,"ms":2,"ts":"2026-08-14T09:02:39Z"}
+{"argv":["preflight","check","--mode","bounded","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T09:03:00Z"}
+{"argv":["audit","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T09:03:00Z"}
