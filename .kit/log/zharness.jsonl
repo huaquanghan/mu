@@ -107,3 +107,11 @@
 {"argv":["audit","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T10:06:23Z"}
 {"argv":["preflight","git","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T10:06:39Z"}
 {"argv":["query","check","--latest","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T10:06:44Z"}
+{"argv":["preflight","handoff","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T10:07:14Z"}
+{"argv":["preflight","check","--mode","full","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T10:07:26Z"}
+{"argv":["check","record","--verdict","APPROVED","--run-id","01KZZVN8GFFHVBRWKKSJXBTEQ3","--judge","same-session","--judge-model","deepseek-v4-flash","--proof-links","[{\"command\":\"go build ./...\",\"output_ref\":\"Validation entry 2026-08-14T10:07:58Z: full-review build passes\"},{\"command\":\"go vet ./...\",\"output_ref\":\"Validation entry 2026-08-14T10:07:58Z: full-review vet passes\"},{\"command\":\"go test ./... -count=1\",\"output_ref\":\"Validation entry 2026-08-14T10:07:58Z: full-review all 9 packages pass\"},{\"command\":\"make smoke\",\"output_ref\":\"Validation entry 2026-08-14T10:07:58Z: full-review smoke checks passed\"}]","--json"],"error_code":"story_not_checkable","exit":1,"ms":1,"ts":"2026-08-14T10:07:58Z"}
+{"argv":["query","plan","--section","current-state","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T10:08:14Z"}
+{"argv":["query","checks","--tail","3","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T10:08:14Z"}
+{"argv":["handoff","record","--run-id","01KZZVMP63H11X5SV3GTSQE0KM","--check-id","01KZZVRV0VX1ZGSX6P8VNDJJW7","--open-items","[]","--close-phase","--json"],"error_code":"","exit":0,"ms":10,"ts":"2026-08-14T10:08:16Z"}
+{"argv":["handoff","record","--run-id","01KZZVN8GFFHVBRWKKSJXBTEQ3","--check-id","01KZZVRZFKKX3XDG1PS66FYTZR","--open-items","[]","--close-phase","--json"],"error_code":"","exit":0,"ms":7,"ts":"2026-08-14T10:08:19Z"}
+{"argv":["query","phases","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T10:08:22Z"}
