@@ -1,0 +1,216 @@
+package clean
+
+import (
+	"errors"
+	"strings"
+	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
+)
+
+const (
+	sizeA int64 = 1 << 20
+	sizeB int64 = 2 << 20
+	sizeC int64 = 4 << 20
+)
+
+// fakeTargets builds three deterministic targets; pass an index >= 0 to make
+// that target's Scan or Execute fail.
+func fakeTargets(failScan, failExec int) []CleanTarget {
+	sizes := []int64{sizeA, sizeB, sizeC}
+	labels := []string{"Alpha Cache", "Beta Logs", "Gamma Temp"}
+	targets := make([]CleanTarget, len(labels))
+	for i := range labels {
+		i := i
+		targets[i] = CleanTarget{
+			ID:      string([]byte{'a' + byte(i)}),
+			Label:   labels[i],
+			Scan:    func() (int64, error) { return sizes[i], nil },
+			Execute: func(bool) error { return nil },
+		}
+		if i == failScan {
+			targets[i].Scan = func() (int64, error) { return 0, errors.New("scan boom") }
+		}
+		if i == failExec {
+			targets[i].Execute = func(bool) error { return errors.New("exec boom") }
+		}
+	}
+	return targets
+}
+
+func newTestFlow(opts Options, failScan, failExec int) *flowModel {
+	return newFlowModel(opts, fakeTargets(failScan, failExec))
+}
+
+func update(t *testing.T, m *flowModel, msgs ...tea.Msg) *flowModel {
+	t.Helper()
+	for _, msg := range msgs {
+		mm, _ := m.Update(msg)
+		var ok bool
+		m, ok = mm.(*flowModel)
+		if !ok {
+			t.Fatalf("Update returned %T, want *flowModel", mm)
+		}
+	}
+	return m
+}
+
+// scanAll drives the scan phase with real sizes, ending at the summary.
+func scanAll(t *testing.T, m *flowModel) *flowModel {
+	t.Helper()
+	sizes := []int64{sizeA, sizeB, sizeC}
+	for i := range m.targets {
+		m = update(t, m, scanTargetMsg{idx: i, size: sizes[i]})
+	}
+	if m.state != stateSummary {
+		t.Fatalf("after scan: state = %v, want stateSummary", m.state)
+	}
+	return m
+}
+
+// confirmYes walks summary → confirm → YES.
+func confirmYes(t *testing.T, m *flowModel) *flowModel {
+	t.Helper()
+	return update(t, m,
+		tea.KeyMsg{Type: tea.KeyEnter}, // summary → confirm
+		tea.KeyMsg{Type: tea.KeyLeft},  // default is NO; move to YES
+		tea.KeyMsg{Type: tea.KeyEnter}, // confirm
+	)
+}
+
+func TestFlowHappyPath(t *testing.T) {
+	m := confirmYes(t, scanAll(t, newTestFlow(Options{}, -1, -1)))
+	if m.state != stateRunning {
+		t.Fatalf("after YES: state = %v, want stateRunning", m.state)
+	}
+	if m.rows[0].status != rowRunning {
+		t.Fatalf("row 0 = %v, want rowRunning", m.rows[0].status)
+	}
+	if !strings.Contains(m.View(), "Cleaning Alpha Cache") {
+		t.Fatalf("running view missing progressive verb: %q", m.View())
+	}
+
+	m = update(t, m, itemDoneMsg{idx: 0})
+	if m.rows[0].status != rowDone || m.rows[1].status != rowRunning {
+		t.Fatalf("after item 0: rows = %v, %v; want rowDone, rowRunning", m.rows[0].status, m.rows[1].status)
+	}
+	if !strings.Contains(m.View(), "✓ Cleaned Alpha Cache") {
+		t.Fatalf("running view missing past-tense line: %q", m.View())
+	}
+
+	m = update(t, m, itemDoneMsg{idx: 1}, itemDoneMsg{idx: 2})
+	if m.state != stateDone {
+		t.Fatalf("state = %v, want stateDone", m.state)
+	}
+	if m.summaryOut != "Freed 7.0 MB" {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Freed 7.0 MB")
+	}
+	if !strings.Contains(m.View(), "✓ Freed 7.0 MB") {
+		t.Fatalf("done view missing freed line: %q", m.View())
+	}
+}
+
+func TestFlowDecline(t *testing.T) {
+	m := scanAll(t, newTestFlow(Options{}, -1, -1))
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // summary → confirm
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // confirm with default NO
+	if m.summaryOut != "Aborted." {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Aborted.")
+	}
+}
+
+func TestFlowDryRunSkipsConfirm(t *testing.T) {
+	m := scanAll(t, newTestFlow(Options{DryRun: true}, -1, -1))
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // → running directly
+	if m.state != stateRunning {
+		t.Fatalf("state = %v, want stateRunning (dry-run skips confirm)", m.state)
+	}
+	m = update(t, m, itemDoneMsg{idx: 0}, itemDoneMsg{idx: 1}, itemDoneMsg{idx: 2})
+	if m.summaryOut != "Dry run — 7.0 MB reclaimable" {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Dry run — 7.0 MB reclaimable")
+	}
+}
+
+func TestFlowAutoYesSkipsConfirm(t *testing.T) {
+	m := scanAll(t, newTestFlow(Options{AutoYes: true}, -1, -1))
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // → running directly
+	if m.state != stateRunning {
+		t.Fatalf("state = %v, want stateRunning (--yes skips confirm)", m.state)
+	}
+	m = update(t, m, itemDoneMsg{idx: 0}, itemDoneMsg{idx: 1}, itemDoneMsg{idx: 2})
+	if m.summaryOut != "Freed 7.0 MB" {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Freed 7.0 MB")
+	}
+}
+
+func TestFlowCtrlCCancelsAfterCurrent(t *testing.T) {
+	m := confirmYes(t, scanAll(t, newTestFlow(Options{}, -1, -1)))
+	m = update(t, m, itemDoneMsg{idx: 0})
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlC}) // while item 1 is running
+	if !m.aborted {
+		t.Fatal("expected aborted after ctrl+c")
+	}
+	m = update(t, m, itemDoneMsg{idx: 1}) // the in-flight item finishes
+	if m.state != stateDone {
+		t.Fatalf("state = %v, want stateDone", m.state)
+	}
+	if m.rows[2].status != rowSkipped {
+		t.Fatalf("row 2 = %v, want rowSkipped", m.rows[2].status)
+	}
+	if m.summaryOut != "Aborted." {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Aborted.")
+	}
+	if !strings.Contains(m.View(), "Cancelled") {
+		t.Fatalf("done view missing cancelled note: %q", m.View())
+	}
+}
+
+func TestFlowFailedItem(t *testing.T) {
+	m := confirmYes(t, scanAll(t, newTestFlow(Options{}, -1, 1)))
+	m = update(t, m, itemDoneMsg{idx: 0})
+	m = update(t, m, itemDoneMsg{idx: 1, err: errors.New("exec boom")})
+	if m.rows[1].status != rowFailed {
+		t.Fatalf("row 1 = %v, want rowFailed", m.rows[1].status)
+	}
+	m = update(t, m, itemDoneMsg{idx: 2})
+	if m.state != stateDone {
+		t.Fatalf("state = %v, want stateDone", m.state)
+	}
+	if m.runErr == nil || !strings.Contains(m.runErr.Error(), "1 clean target(s) failed") {
+		t.Fatalf("runErr = %v, want failure count", m.runErr)
+	}
+	if !strings.Contains(m.View(), "Failed Beta Logs") {
+		t.Fatalf("done view missing failure: %q", m.View())
+	}
+}
+
+func TestFlowScanErrorAborts(t *testing.T) {
+	m := newTestFlow(Options{}, 0, -1)
+	m = update(t, m,
+		scanTargetMsg{idx: 0, err: errors.New("scan boom")},
+		scanTargetMsg{idx: 1, size: sizeB},
+		scanTargetMsg{idx: 2, size: sizeC},
+	)
+	if m.state != stateSummary {
+		t.Fatalf("state = %v, want stateSummary", m.state)
+	}
+	if len(m.scanErrs) != 1 {
+		t.Fatalf("scanErrs = %d, want 1", len(m.scanErrs))
+	}
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.runErr == nil {
+		t.Fatal("expected runErr after scan failure")
+	}
+}
+
+func TestFlowNarrowWidth(t *testing.T) {
+	m := scanAll(t, newTestFlow(Options{}, -1, -1))
+	m = update(t, m, tea.WindowSizeMsg{Width: 20})
+	if !strings.Contains(m.View(), "Potential space to free:") {
+		t.Fatalf("narrow summary missing total: %q", m.View())
+	}
+	m = confirmYes(t, m)
+	m.View() // running view must not panic at width 20
+	m = update(t, m, itemDoneMsg{idx: 0}, itemDoneMsg{idx: 1}, itemDoneMsg{idx: 2})
+	m.View() // done view must not panic at width 20
+}

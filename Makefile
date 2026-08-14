@@ -60,7 +60,7 @@ smoke: build
 	@$(BUILD_DIR)/$(BINARY) --help
 	@echo ""
 	@echo "=== mu clean --dry-run ==="
-	@$(BUILD_DIR)/$(BINARY) clean --dry-run
+	@$(BUILD_DIR)/$(BINARY) clean --dry-run | cat
 	@echo ""
 	@echo "=== mu optimize --dry-run ==="
 	@$(BUILD_DIR)/$(BINARY) optimize --dry-run

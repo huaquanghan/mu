@@ -8,23 +8,24 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/huaquanghan/mu/internal/status"
+	"github.com/huaquanghan/mu/internal/ui"
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#0097A7")).
+			Foreground(lipgloss.Color(ui.ColorPrimary)).
 			Padding(0, 1)
 
 	itemStyle     = lipgloss.NewStyle().Padding(0, 2)
 	selectedStyle = lipgloss.NewStyle().
 			Padding(0, 2).
-			Foreground(lipgloss.Color("#0097A7")).
+			Foreground(lipgloss.Color(ui.ColorPrimary)).
 			Bold(true)
 	snapshotStyle  = lipgloss.NewStyle().Faint(true).Padding(0, 2)
-	bannerStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0097A7")).Padding(0, 2)
-	errBannerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#EF4444")).Padding(0, 2)
+	bannerStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ui.ColorPrimary)).Padding(0, 2)
+	errBannerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ui.ColorDanger)).Padding(0, 2)
 	errHintStyle   = lipgloss.NewStyle().Faint(true).Padding(0, 2)
 )
 
@@ -125,7 +126,7 @@ const banner = `░█▄▒▄█░█▒█░░
 ░█▒▀▒█░▀▄█▒░`
 
 func (m mainMenuModel) View() string {
-	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7")).Bold(true).Render(banner)
+	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color(ui.ColorPrimary)).Bold(true).Render(banner)
 	s := "\n\n  " + strings.ReplaceAll(bannerStr, "\n", "\n  ") + "\n"
 	s += titleStyle.Render("  Mole Ubuntu — safe system cleaner") + "\n"
 

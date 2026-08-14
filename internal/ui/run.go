@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	runSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0097A7"))
+	runSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorPrimary))
 	runFaintStyle   = lipgloss.NewStyle().Faint(true)
-	runSummaryStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0097A7"))
+	runSummaryStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorPrimary))
 )
 
 // Run renders a subcommand run in mu's consistent style: section headers,
@@ -57,10 +57,7 @@ func (r *Run) Spinner(label string, fn func() error) error {
 		fmt.Fprintln(r.w, "  "+label+"...")
 		return fn()
 	}
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7"))
-	m := spinnerRunModel{spinner: sp, label: label, fn: fn}
+	m := spinnerRunModel{spinner: NewSpinner(), label: label, fn: fn}
 	final, err := tea.NewProgram(m).Run()
 	if err != nil {
 		// The spinner is cosmetic; run the work directly on failure.

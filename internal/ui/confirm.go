@@ -9,12 +9,6 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
-var (
-	confirmCyan     = lipgloss.Color("#0097A7")
-	confirmActive   = lipgloss.NewStyle().Bold(true).Background(confirmCyan).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 2)
-	confirmInactive = lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#374151")).Foreground(lipgloss.Color("#9CA3AF")).Padding(0, 2)
-)
-
 type confirmModel struct {
 	prompt string
 	cursor int // 0=YES 1=NO
@@ -43,9 +37,9 @@ func (m confirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // RenderButtons returns styled YES and NO strings; cursor 0 = YES active.
 func RenderButtons(cursor int) (yes, no string) {
 	if cursor == 0 {
-		return confirmActive.Render("YES"), confirmInactive.Render("NO")
+		return StyleButtonOn.Render("YES"), StyleButtonOff.Render("NO")
 	}
-	return confirmInactive.Render("YES"), confirmActive.Render("NO")
+	return StyleButtonOff.Render("YES"), StyleButtonOn.Render("NO")
 }
 
 func (m confirmModel) View() string {

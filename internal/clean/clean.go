@@ -27,6 +27,10 @@ type scanResult struct {
 // Run executes the clean workflow: scan → display → confirm → execute.
 // It returns a one-line summary (freed space, reclaimable on dry runs, or
 // "Aborted." when the user declines the confirmation prompt).
+//
+// On a real terminal the flow runs as a single Bubble Tea program
+// (scanning → summary → confirm → running → done); on pipes/CI it falls
+// back to plain line-by-line output.
 func Run(opts Options) (string, error) {
 	if _, err := utils.LoadWhitelist(); err != nil {
 		return "", fmt.Errorf("invalid mu configuration: %w", err)
@@ -39,6 +43,15 @@ func Run(opts Options) (string, error) {
 		return "", err
 	}
 
+	if interactive() {
+		return runFlow(opts, targets)
+	}
+	return runPlain(opts, targets)
+}
+
+// runPlain is the non-interactive fallback: line-by-line output, no
+// animation, no prompts (pass --yes to run without a terminal).
+func runPlain(opts Options, targets []CleanTarget) (string, error) {
 	r := ui.NewRun(os.Stdout)
 
 	var results []scanResult
@@ -89,7 +102,8 @@ func Run(opts Options) (string, error) {
 		return summary, nil
 	}
 
-	if !opts.AutoYes && !ui.Confirm("Proceed to clean?") {
+	if !opts.AutoYes {
+		r.Faint("Non-interactive: pass --yes to confirm, or --dry-run to preview.")
 		r.Faint("Aborted.")
 		return "Aborted.", nil
 	}
