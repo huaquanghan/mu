@@ -1,0 +1,5 @@
+{"argv":["preflight","watzup","--json"],"error_code":"","exit":0,"ms":3,"ts":"2026-08-14T04:11:03Z"}
+{"argv":["init","--refresh-docs"],"error_code":"","exit":0,"ms":19,"ts":"2026-08-14T04:45:44Z"}
+{"argv":["preflight","watzup","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T04:45:47Z"}
+{"argv":["preflight","git","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T04:45:53Z"}
+{"argv":["query","check","--latest","--json"],"error_code":"no_check_found","exit":1,"ms":0,"ts":"2026-08-14T04:46:18Z"}
