@@ -115,3 +115,4 @@
 {"argv":["handoff","record","--run-id","01KZZVMP63H11X5SV3GTSQE0KM","--check-id","01KZZVRV0VX1ZGSX6P8VNDJJW7","--open-items","[]","--close-phase","--json"],"error_code":"","exit":0,"ms":10,"ts":"2026-08-14T10:08:16Z"}
 {"argv":["handoff","record","--run-id","01KZZVN8GFFHVBRWKKSJXBTEQ3","--check-id","01KZZVRZFKKX3XDG1PS66FYTZR","--open-items","[]","--close-phase","--json"],"error_code":"","exit":0,"ms":7,"ts":"2026-08-14T10:08:19Z"}
 {"argv":["query","phases","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-14T10:08:22Z"}
+{"argv":["audit","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-14T10:08:54Z"}
