@@ -1,0 +1,1 @@
+{"op":"create","entity":"trace","id":"01KZZVN8553D3GZVG2V2PXANM8","fields":{"created_at":"2026-08-14T10:04:08Z","run_id":"01KZZVMP63H11X5SV3GTSQE0KM","summary":"Wave 1 complete: go build ./... OK; go test ./internal/ui/... ./cmd/mu/... pass; hex literals only in styles.go palette (no raw hex in views)","wave":1},"at":"2026-08-14T10:04:08Z"}

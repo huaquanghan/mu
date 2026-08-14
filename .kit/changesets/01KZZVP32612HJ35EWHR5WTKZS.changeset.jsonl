@@ -1,0 +1,1 @@
+{"op":"create","entity":"trace","id":"01KZZVP32612HJ35EWHM7E14HJ","fields":{"created_at":"2026-08-14T10:04:36Z","run_id":"01KZZVN8GFFHVBRWKKSJXBTEQ3","summary":"Wave 1 complete: go build + go vet OK; 8/8 TestFlow model tests pass; go test -race ./... 9/9 packages ok","wave":1},"at":"2026-08-14T10:04:36Z"}

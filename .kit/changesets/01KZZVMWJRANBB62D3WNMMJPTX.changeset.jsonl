@@ -1,0 +1,1 @@
+{"op":"create","entity":"trace","id":"01KZZVMWJQ6B9HN6BGWZPMQ2BJ","fields":{"created_at":"2026-08-14T10:03:56Z","run_id":"01KZZVMP63H11X5SV3GTSQE0KM","summary":"Phase started — run 01KZZVMP63H11X5SV3GTSQE0KM created (post-hoc lock: implementation already in working tree); T1/T2 verification next","wave":1},"at":"2026-08-14T10:03:56Z"}

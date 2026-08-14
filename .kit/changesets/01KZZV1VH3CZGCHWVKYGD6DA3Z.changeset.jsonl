@@ -1,0 +1,1 @@
+{"op":"create","entity":"story","id":"01KZZV1VH3CZGCHWVKYCH5SZBQ","fields":{"created_at":"2026-08-14T09:53:33Z","goal":"Shared lipgloss style module: internal/ui/styles.go palette/buttons/spinner/marks with mechanical dedup across ui/confirm.go, ui/run.go, cmd/mu/cli/tui.go and unchanged rendering","slug":"shared-styles","status":"planned"},"at":"2026-08-14T09:53:33Z"}
