@@ -3,7 +3,7 @@ id: 01KZZV1PNH1D6BFHF2RQBY02NK
 type: plan
 intake_id: 01KZZV1RX7MXAGGJGJRDCPDGX3
 lane: normal
-status: active
+status: completed
 created: 2026-08-14
 updated: 2026-08-14
 ---
@@ -69,7 +69,7 @@ updated: 2026-08-14
 - phases:
   - phase_slug: shared-styles
     story_id: 01KZZV1VH3CZGCHWVKYCH5SZBQ
-    status: checked
+    status: done
     goal: Shared lipgloss style module — internal/ui/styles.go palette/buttons/spinner/marks with mechanical dedup across ui/confirm.go, ui/run.go, cmd/mu/cli/tui.go and unchanged rendering
     depends_on: none
     allowed_surfaces: [internal/ui/styles.go (new), internal/ui/confirm.go, internal/ui/run.go, cmd/mu/cli/tui.go]
@@ -85,7 +85,7 @@ updated: 2026-08-14
           - `grep -rn '#0097A7\|#EF4444' cmd/mu/cli/tui.go internal/ui/` — no raw hex literals left
   - phase_slug: clean-flow-tui
     story_id: 01KZZV1W2J20QVFK29KV0KK4BH
-    status: checked
+    status: done
     goal: Single alt-screen 5-state Bubble Tea clean flow (scanning, summary, confirm, running, done) with per-target real completion events, cooperative ctrl+c, non-TTY fallback, narrow-width-safe layout
     depends_on: shared-styles
     allowed_surfaces: [internal/clean/flow.go (new), internal/clean/flow_test.go (new), internal/clean/clean.go, Makefile]
@@ -121,6 +121,8 @@ updated: 2026-08-14
 - `2026-08-14T10:04:37Z` — wave 2, task T5. task_status: `DONE`. run: `01KZZVN8GFFHVBRWKKSJXBTEQ3`. summary: flow_test.go: 8 model tests driving Update() directly — happy/decline/dry-run/--yes/ctrl-c/failed/scan-error/narrow-width.
 - `2026-08-14T10:04:37Z` — wave 2, task T6. task_status: `DONE`. run: `01KZZVN8GFFHVBRWKKSJXBTEQ3`. summary: Makefile smoke pipes clean --dry-run (non-TTY path); pty scenarios verified: happy dry-run (Scan complete + Cleaned rows + Done frame), decline (0 items cleaned), ctrl+c ([?1049l [?25h restore, exit 0), stty cols 30 dry-run (exit 0); make test + make smoke pass.
 - `2026-08-14T10:04:38Z` — wave 2. run: `01KZZVN8GFFHVBRWKKSJXBTEQ3`. summary: Wave 2 complete: make test + make build + make smoke all pass; pty evidence captured (happy/decline/ctrl-c/narrow/non-tty).
+- `2026-08-14T10:08:16.928Z` — handoff recorded. handoff: `01KZZVWTH0ARC7T3KXK62C8NWD`. run: `01KZZVMP63H11X5SV3GTSQE0KM`. check: `01KZZVRV0VX1ZGSX6P8VNDJJW7`. phase closed.
+- `2026-08-14T10:08:19.413Z` — handoff recorded. handoff: `01KZZVWWYNCD1SCS2YGHFJ9YK9`. run: `01KZZVN8GFFHVBRWKKSJXBTEQ3`. check: `01KZZVRZFKKX3XDG1PS66FYTZR`. phase closed.
 
 ## Validation
 <!-- Append-only durable check entries: verdict, check id, run id, judge, proof commands. -->
@@ -134,12 +136,12 @@ updated: 2026-08-14
   - `make smoke` → Validation entry 2026-08-14T10:06:06Z: all smoke checks passed
 
 ## Current State and Next Action
-- active_phase: clean-flow-tui
-- lifecycle_status: checked
+- active_phase: none
+- lifecycle_status: done
 - latest_run_id: 01KZZVN8GFFHVBRWKKSJXBTEQ3
 - latest_trace_ids: [01KZZVNFW5MYCHVHMVAHGWZFY6, 01KZZVP2F7192VCJPJJNCXBY4Y, 01KZZVP2F7192VCJPJJQKFWSAP, 01KZZVP32612HJ35EWHM7E14HJ, 01KZZVP4AQWNJ60JV8J55J2H6G, 01KZZVP4AQWNJ60JV8J78E8S86, 01KZZVP4YEBED46GZVHNSFH34D]
 - latest_check_id: 01KZZVRZFKKX3XDG1PS66FYTZR
-- latest_handoff_id: none
+- latest_handoff_id: 01KZZVWWYNCD1SCS2YGHFJ9YK9
 - blockers: none
-- open_items: none — T1-T6 all DONE, both phases checked (APPROVED)
-- exact_next_action: git commit the initiative (plan doc + implementation + tests), then handoff closure
+- open_items: none — initiative closed: T1-T6 DONE, both phases done (APPROVED), committed on main
+- exact_next_action: none — initiative complete; plan moved to docs/plans/completed/tui-clean-flow.md
