@@ -1,0 +1,2 @@
+{"op":"create","entity":"handoff","id":"01KZZMPK7V3B51RPT0H5C8S986","fields":{"anchors":{"latest_check_id":"01KZZKQM1TTGZ8BC109V73FM1C","latest_run_id":"01KZZKERZQ6H0KKWCW76VMMCCQ","open_items":[]},"check_id":"01KZZKQM1TTGZ8BC109V73FM1C","created_at":"2026-08-14T08:02:32.827Z","run_id":"01KZZKERZQ6H0KKWCW76VMMCCQ"},"at":"2026-08-14T08:02:32.827Z"}
+{"op":"update","entity":"story","id":"01KZZJJGARF4MV33QGZSX092QT","fields":{"status":"done"},"at":"2026-08-14T08:02:32.827Z"}

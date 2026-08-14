@@ -1,0 +1,1 @@
+{"op":"create","entity":"trace","id":"01KZZKHTAY1CXCJHS040C108EC","fields":{"created_at":"2026-08-14T07:42:27Z","run_id":"01KZZKERZQ6H0KKWCW76VMMCCQ","summary":"Wave 1 complete: runner shell built and unit-tested","wave":1},"at":"2026-08-14T07:42:27Z"}

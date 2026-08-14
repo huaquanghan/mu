@@ -1,0 +1,1 @@
+{"op":"create","entity":"story","id":"01KZZJJJC1EC1426WRHKQMJ5GS","fields":{"created_at":"2026-08-14T07:25:23Z","depends_on":"runner-shell","goal":"Main menu polish: numeric shortcuts, persisted cursor/health snapshot, transient done-summary banner, styled error return","slug":"menu-polish","status":"planned"},"at":"2026-08-14T07:25:23Z"}

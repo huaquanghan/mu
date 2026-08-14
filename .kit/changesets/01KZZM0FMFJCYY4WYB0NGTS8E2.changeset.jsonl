@@ -1,0 +1,1 @@
+{"op":"create","entity":"trace","id":"01KZZM0FMFJCYY4WYB0HN47ZT1","fields":{"created_at":"2026-08-14T07:50:28Z","run_id":"01KZZKY4TNMZ5Q3FQ6NAKZ3FQW","summary":"Wave 1 complete: make test passes, numeric shortcuts and state persistence unit-tested","wave":1},"at":"2026-08-14T07:50:28Z"}

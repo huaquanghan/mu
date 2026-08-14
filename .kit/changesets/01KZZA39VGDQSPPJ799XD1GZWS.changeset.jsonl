@@ -1,0 +1,1 @@
+{"op":"create","entity":"intake","id":"01KZZA39VGDQSPPJ799T22B0NH","fields":{"created_at":"2026-08-14T04:57:14Z","lane":"normal","plan_path":"docs/plans/active/run-ux.md","summary":"Unified styled run shell for clean/optimize + main menu polish (numeric shortcuts, state persistence, done banner, styled errors)","type":"change-request"},"at":"2026-08-14T04:57:14Z"}

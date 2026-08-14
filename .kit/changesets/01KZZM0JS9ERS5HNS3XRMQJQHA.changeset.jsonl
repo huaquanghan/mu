@@ -1,0 +1,1 @@
+{"op":"create","entity":"trace","id":"01KZZM0JS9ERS5HNS3XPQFW7P8","fields":{"created_at":"2026-08-14T07:50:31Z","run_id":"01KZZKY4TNMZ5Q3FQ6NAKZ3FQW","summary":"Wave 2 complete: make test + make smoke pass; banner and styled-error unit-tested","wave":2},"at":"2026-08-14T07:50:31Z"}
