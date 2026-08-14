@@ -84,33 +84,36 @@ func RunStep(id string, opts Options, out io.Writer) (skipped bool, err error) {
 }
 
 // Run executes (or previews) the optimization steps.
-func Run(opts Options) error {
+// It returns a one-line summary (step counts, or "Aborted." when the user
+// declines the confirmation prompt).
+func Run(opts Options) (string, error) {
 	if _, err := utils.LoadWhitelist(); err != nil {
-		return fmt.Errorf("invalid mu configuration: %w", err)
+		return "", fmt.Errorf("invalid mu configuration: %w", err)
 	}
 	skip, err := resolveSkip(opts)
 	if err != nil {
-		return err
+		return "", err
 	}
 	steps := allSteps()
 
-	fmt.Print("\n🔧 Optimize plan:\n\n")
+	r := ui.NewRun(os.Stdout)
+	r.Section("Optimize plan")
 	for _, s := range steps {
 		if slices.Contains(skip, s.id) {
-			fmt.Printf("  [skip]  %s\n", s.desc)
+			r.Line("[skip]  %s", s.desc)
 		} else {
-			fmt.Printf("  [run]   %s\n", s.desc)
+			r.Line("[run]   %s", s.desc)
 		}
 	}
 
 	if opts.DryRun {
-		fmt.Println("\n⚠️  Dry run — nothing executed.")
-		return nil
+		r.Faint("Dry run — nothing executed.")
+		return "Dry run — nothing executed.", nil
 	}
 
 	if !opts.AutoYes && !ui.Confirm("Proceed to optimize?") {
-		fmt.Println("Aborted.")
-		return nil
+		r.Faint("Aborted.")
+		return "Aborted.", nil
 	}
 
 	if err := utils.InitLogger(); err != nil && opts.Debug {
@@ -125,22 +128,37 @@ func Run(opts Options) error {
 	p := tea.NewProgram(newOptimizeModel(steps, skip, opts.Debug), programOptions...)
 	final, err := p.Run()
 	if err != nil {
-		return err
+		return "", err
 	}
 	model, ok := final.(optimizeModel)
 	if !ok {
-		return fmt.Errorf("unexpected optimize model result %T", final)
+		return "", fmt.Errorf("unexpected optimize model result %T", final)
 	}
 	resultErr := stepErrors(model.results)
 	if model.cancelled {
 		resultErr = errors.Join(resultErr, fmt.Errorf("optimization stopped after the active step completed"))
 	}
 	if resultErr != nil {
-		return resultErr
+		return "", resultErr
 	}
 
-	fmt.Println("\n✅  Optimization complete.")
-	return nil
+	var succeeded, failed, skipped int
+	for _, res := range model.results {
+		switch res.Status {
+		case StepSuccess:
+			succeeded++
+		case StepFailed:
+			failed++
+		case StepSkipped:
+			skipped++
+		}
+	}
+	summary := fmt.Sprintf("Optimization complete — %d succeeded, %d failed, %d skipped", succeeded, failed, skipped)
+	if model.cancelled {
+		summary += " (stopped early)"
+	}
+	r.Summary(summary)
+	return summary, nil
 }
 
 func resolveSkip(opts Options) ([]string, error) {

@@ -23,7 +23,8 @@ Use --dry-run to see what would run without executing.
 Use --skip to exclude specific steps (e.g. --skip=apt,journal).
 Use --yes to skip the confirmation prompt (for scripting).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runOptimize()
+		_, err := runOptimize()
+		return err
 	},
 }
 
@@ -33,7 +34,7 @@ func init() {
 	optimizeCmd.Flags().BoolVarP(&optimizeYes, "yes", "y", false, "Skip confirmation prompt")
 }
 
-func runOptimize() error {
+func runOptimize() (string, error) {
 	return optimize.Run(optimize.Options{
 		DryRun:  optimizeDryRun,
 		Debug:   debug,

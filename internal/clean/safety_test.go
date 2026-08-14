@@ -3,6 +3,7 @@ package clean
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/huaquanghan/mu/internal/command"
+	"github.com/huaquanghan/mu/internal/ui"
 	"github.com/huaquanghan/mu/internal/utils"
 )
 
@@ -107,11 +109,11 @@ func TestUserCacheRejectsTopLevelSymlinkInDryRun(t *testing.T) {
 }
 
 func TestExecuteAggregatesPartialFailures(t *testing.T) {
-	targets := []CleanTarget{
-		{ID: "ok", Label: "ok", Execute: func(bool) error { return nil }},
-		{ID: "bad", Label: "bad", Execute: func(bool) error { return errors.New("blocked") }},
+	results := []scanResult{
+		{target: CleanTarget{ID: "ok", Label: "ok", Execute: func(bool) error { return nil }}, size: 100},
+		{target: CleanTarget{ID: "bad", Label: "bad", Execute: func(bool) error { return errors.New("blocked") }}, size: 200},
 	}
-	if err := execute(targets, Options{DryRun: true}); err == nil || !strings.Contains(err.Error(), "1 clean target") {
+	if _, err := execute(ui.NewRun(io.Discard), results, Options{DryRun: true}); err == nil || !strings.Contains(err.Error(), "1 clean target") {
 		t.Fatalf("expected aggregate failure, got %v", err)
 	}
 }
@@ -141,7 +143,7 @@ func TestRunFailsClosedOnMalformedConfigBeforeScanning(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(configRoot, "mu", "config.toml"), []byte("broken = ["), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := Run(Options{DryRun: true}); err == nil || !strings.Contains(err.Error(), "invalid mu configuration") {
+	if _, err := Run(Options{DryRun: true}); err == nil || !strings.Contains(err.Error(), "invalid mu configuration") {
 		t.Fatalf("expected config error, got %v", err)
 	}
 }
@@ -172,7 +174,7 @@ func TestRunDryRunCompletesWithReadOnlyScanners(t *testing.T) {
 		},
 	}
 	t.Cleanup(func() { cleanRunner = command.ExecRunner{} })
-	if err := Run(Options{DryRun: true}); err != nil {
+	if _, err := Run(Options{DryRun: true}); err != nil {
 		t.Fatal(err)
 	}
 }

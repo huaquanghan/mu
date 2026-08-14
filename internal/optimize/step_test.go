@@ -101,7 +101,7 @@ func TestUpdateCachesAggregatesFailuresAndContinues(t *testing.T) {
 
 func TestOptimizeRejectsUnknownSkip(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	if err := Run(Options{DryRun: true, Skip: []string{"unknown"}}); err == nil {
+	if _, err := Run(Options{DryRun: true, Skip: []string{"unknown"}}); err == nil {
 		t.Fatal("expected unknown skip error")
 	}
 }
@@ -122,7 +122,7 @@ func TestRunStepFailsClosedOnMalformedConfig(t *testing.T) {
 
 func TestRunAllSkippedCompletesAndRecordsSkippedStates(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	if err := Run(Options{AutoYes: true, Skip: []string{"apt", "journal", "caches"}}); err != nil {
+	if _, err := Run(Options{AutoYes: true, Skip: []string{"apt", "journal", "caches"}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -133,7 +133,7 @@ func TestRunReturnsNonzeroAfterIndependentStepFailure(t *testing.T) {
 		return command.Result{}, errors.New("cache refresh failed")
 	})
 	t.Cleanup(func() { optimizeRunner = command.ExecRunner{} })
-	err := Run(Options{AutoYes: true, Skip: []string{"apt", "journal"}})
+	_, err := Run(Options{AutoYes: true, Skip: []string{"apt", "journal"}})
 	if err == nil || !strings.Contains(err.Error(), "cache refresh failed") {
 		t.Fatalf("expected optimize failure, got %v", err)
 	}

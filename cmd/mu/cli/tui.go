@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -23,7 +22,10 @@ var (
 			Padding(0, 2).
 			Foreground(lipgloss.Color("#0097A7")).
 			Bold(true)
-	snapshotStyle = lipgloss.NewStyle().Faint(true).Padding(0, 2)
+	snapshotStyle  = lipgloss.NewStyle().Faint(true).Padding(0, 2)
+	bannerStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#0097A7")).Padding(0, 2)
+	errBannerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#EF4444")).Padding(0, 2)
+	errHintStyle   = lipgloss.NewStyle().Faint(true).Padding(0, 2)
 )
 
 type menuItem struct {
@@ -49,12 +51,17 @@ type healthMsg struct {
 }
 
 type mainMenuModel struct {
-	cursor   int
-	chosen   string
-	snapshot *healthMsg
+	cursor    int
+	chosen    string
+	snapshot  *healthMsg
+	banner    string
+	bannerErr bool
 }
 
 func (m mainMenuModel) Init() tea.Cmd {
+	if m.snapshot != nil {
+		return nil
+	}
 	return func() tea.Msg {
 		s1, err := status.ReadCPU()
 		if err != nil {
@@ -87,6 +94,10 @@ func (m mainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.snapshot = &msg
 		return m, nil
 	case tea.KeyMsg:
+		if m.banner != "" {
+			m.banner = ""
+			m.bannerErr = false
+		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -98,6 +109,10 @@ func (m mainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor < len(menuItems)-1 {
 				m.cursor++
 			}
+		case "1", "2", "3", "4", "5", "6":
+			idx := int(msg.String()[0] - '1')
+			m.chosen = menuItems[idx].command
+			return m, tea.Quit
 		case "enter", " ":
 			m.chosen = menuItems[m.cursor].command
 			return m, tea.Quit
@@ -113,6 +128,18 @@ func (m mainMenuModel) View() string {
 	bannerStr := lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7")).Bold(true).Render(banner)
 	s := "\n\n  " + strings.ReplaceAll(bannerStr, "\n", "\n  ") + "\n"
 	s += titleStyle.Render("  Mole Ubuntu — safe system cleaner") + "\n"
+
+	if m.banner != "" {
+		style := bannerStyle
+		if m.bannerErr {
+			style = errBannerStyle
+		}
+		s += style.Render("  "+m.banner) + "\n"
+		if m.bannerErr {
+			s += errHintStyle.Render("  press any key to continue") + "\n"
+		}
+		s += "\n"
+	}
 
 	if m.snapshot == nil {
 		s += snapshotStyle.Render("Loading...") + "\n\n"
@@ -141,8 +168,12 @@ func (m mainMenuModel) View() string {
 }
 
 func runTUI() error {
+	var cursor int
+	var snapshot *healthMsg
+	var banner string
+	var bannerErr bool
 	for {
-		m := mainMenuModel{}
+		m := mainMenuModel{cursor: cursor, snapshot: snapshot, banner: banner, bannerErr: bannerErr}
 		p := tea.NewProgram(m, tea.WithAltScreen())
 		result, err := p.Run()
 		if err != nil {
@@ -152,21 +183,34 @@ func runTUI() error {
 		if !ok || final.chosen == "" || final.chosen == "quit" {
 			return nil
 		}
+		cursor = final.cursor
+		if final.snapshot != nil {
+			snapshot = final.snapshot
+		}
+		banner, bannerErr = "", false
 		var runErr error
 		switch final.chosen {
 		case "audit":
 			runErr = runAudit()
 		case "clean":
-			runErr = runClean()
+			var summary string
+			summary, runErr = runClean()
+			if runErr == nil && summary != "Aborted." {
+				banner = "✅ " + summary
+			}
 		case "uninstall":
 			runErr = runUninstall()
 		case "optimize":
-			runErr = runOptimize()
+			var summary string
+			summary, runErr = runOptimize()
+			if runErr == nil && summary != "Aborted." {
+				banner = "✅ " + summary
+			}
 		case "status":
 			runErr = runStatus()
 		}
 		if runErr != nil {
-			fmt.Fprintf(os.Stderr, "\nerror: %v\n", runErr)
+			banner, bannerErr = "❌ "+runErr.Error(), true
 		}
 	}
 }

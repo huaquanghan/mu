@@ -28,7 +28,8 @@ Use --dry-run to preview what would be removed without making changes.
 Use --include=browser-cache to enable opt-in categories.
 Use --yes to skip the confirmation prompt (for scripting).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runClean()
+		_, err := runClean()
+		return err
 	},
 }
 
@@ -38,7 +39,7 @@ func init() {
 	cleanCmd.Flags().BoolVarP(&cleanYes, "yes", "y", false, "Skip confirmation prompt")
 }
 
-func runClean() error {
+func runClean() (string, error) {
 	return clean.Run(clean.Options{
 		DryRun:  cleanDryRun,
 		Debug:   debug,
