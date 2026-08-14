@@ -1,13 +1,17 @@
 package ui
 
 import (
+	"fmt"
+	"os"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-isatty"
 )
 
 var (
-	confirmCyan    = lipgloss.Color("#0097A7")
-	confirmActive  = lipgloss.NewStyle().Bold(true).Background(confirmCyan).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 2)
+	confirmCyan     = lipgloss.Color("#0097A7")
+	confirmActive   = lipgloss.NewStyle().Bold(true).Background(confirmCyan).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 2)
 	confirmInactive = lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#374151")).Foreground(lipgloss.Color("#9CA3AF")).Padding(0, 2)
 )
 
@@ -54,6 +58,12 @@ func (m confirmModel) View() string {
 // Defaults to NO to prevent accidental destructive actions.
 func Confirm(prompt string) bool {
 	m, err := tea.NewProgram(confirmModel{prompt: prompt, cursor: 1}).Run()
+	// Bubble Tea's inline renderer leaves the prompt frame on screen after the
+	// program exits. Clear it so the next view (run checklist or abort note)
+	// starts on a clean screen instead of rendering below the leftover prompt.
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		fmt.Fprint(os.Stdout, "\x1b[2J\x1b[H")
+	}
 	if err != nil {
 		return false
 	}
