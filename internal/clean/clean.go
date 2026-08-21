@@ -62,8 +62,9 @@ func runPlain(opts Options, targets []CleanTarget) (string, error) {
 			sz, err := t.Scan()
 			if err != nil {
 				scanErrors = append(scanErrors, fmt.Errorf("scan %s: %w", t.ID, err))
+			} else {
+				total += sz
 			}
-			total += sz
 			res := scanResult{target: t, size: sz}
 			if err == nil && t.Preview != nil {
 				items, previewErr := t.Preview()

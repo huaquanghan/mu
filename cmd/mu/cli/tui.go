@@ -98,6 +98,7 @@ func (m mainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.banner != "" {
 			m.banner = ""
 			m.bannerErr = false
+			return m, nil
 		}
 		switch msg.String() {
 		case "ctrl+c", "q":

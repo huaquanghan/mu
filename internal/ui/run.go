@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,11 +58,29 @@ func (r *Run) Spinner(label string, fn func() error) error {
 		fmt.Fprintln(r.w, "  "+label+"...")
 		return fn()
 	}
-	m := spinnerRunModel{spinner: NewSpinner(), label: label, fn: fn}
+	var once sync.Once
+	var workErr error
+	runOnce := func() error {
+		once.Do(func() {
+			// sync.Once marks itself done even when f() panics, so without
+			// recovering here a panic in fn would surface as a nil error
+			// (bubbletea already recovers goroutine panics on the Init path).
+			defer func() {
+				if r := recover(); r != nil {
+					workErr = fmt.Errorf("panic in %s: %v", label, r)
+				}
+			}()
+			workErr = fn()
+		})
+		return workErr
+	}
+	m := spinnerRunModel{spinner: NewSpinner(), label: label, fn: runOnce}
 	final, err := tea.NewProgram(m).Run()
 	if err != nil {
 		// The spinner is cosmetic; run the work directly on failure.
-		return fn()
+		// runOnce guards against double-executing fn if Init already
+		// dispatched it in a command goroutine.
+		return runOnce()
 	}
 	if fm, ok := final.(spinnerRunModel); ok {
 		return fm.err

@@ -154,6 +154,12 @@ func (m *flowModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		return m, nil
 	case spinner.TickMsg:
+		// Keep the spinner animating only while it's visible (scanning and
+		// running). On static screens (summary/confirm/done) drop the tick so
+		// the view stops re-rendering ~13×/s and time-based text stays fixed.
+		if m.state != stateScanning && m.state != stateRunning {
+			return m, nil
+		}
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
@@ -223,6 +229,11 @@ func (m *flowModel) finishRun(next int) {
 		m.summaryOut = "Aborted."
 	case m.failed > 0:
 		m.runErr = fmt.Errorf("%d clean target(s) failed", m.failed)
+		if m.opts.DryRun {
+			m.summaryOut = fmt.Sprintf("Dry run — %s reclaimable (%d failed)", utils.HumanSize(m.total), m.failed)
+		} else {
+			m.summaryOut = fmt.Sprintf("Freed %s — %d item(s) failed", utils.HumanSize(m.freed), m.failed)
+		}
 	case m.opts.DryRun:
 		m.summaryOut = fmt.Sprintf("Dry run — %s reclaimable", utils.HumanSize(m.total))
 	default:
@@ -239,8 +250,7 @@ func (m *flowModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		case stateDone:
 			return tea.Quit
 		default:
-			m.summaryOut = "Aborted."
-			return tea.Quit
+			return m.quitAbort()
 		}
 	case "q", "esc":
 		switch m.state {
@@ -249,8 +259,7 @@ func (m *flowModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		case stateDone:
 			return tea.Quit
 		default:
-			m.summaryOut = "Aborted."
-			return tea.Quit
+			return m.quitAbort()
 		}
 	case "enter", " ":
 		switch m.state {
@@ -261,7 +270,7 @@ func (m *flowModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 			}
 			if m.opts.DryRun || m.opts.AutoYes {
 				m.startRun()
-				return m.runCmd(0)
+				return tea.Batch(m.spinner.Tick, m.runCmd(0))
 			}
 			m.state = stateConfirm
 		case stateConfirm:
@@ -270,7 +279,7 @@ func (m *flowModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 				return tea.Quit
 			}
 			m.startRun()
-			return m.runCmd(0)
+			return tea.Batch(m.spinner.Tick, m.runCmd(0))
 		case stateDone:
 			return tea.Quit
 		}
@@ -280,6 +289,18 @@ func (m *flowModel) handleKey(msg tea.KeyMsg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+// quitAbort exits with a scan-error report when the scan finished with
+// errors, matching the Enter key's behavior on the error summary; otherwise
+// it records a plain "Aborted." summary.
+func (m *flowModel) quitAbort() tea.Cmd {
+	if m.state == stateSummary && len(m.scanErrs) > 0 {
+		m.runErr = errors.Join(m.scanErrs...)
+	} else {
+		m.summaryOut = "Aborted."
+	}
+	return tea.Quit
 }
 
 func (m *flowModel) startRun() {
@@ -295,7 +316,7 @@ func (m *flowModel) runCount() int {
 	n := 0
 	for i := range m.rows {
 		switch m.rows[i].status {
-		case rowDone, rowFailed:
+		case rowDone:
 			n++
 		}
 	}
@@ -366,7 +387,7 @@ func (m *flowModel) viewSummary() string {
 		label := ansi.Truncate(res.target.Label, labelW, "…")
 		s += "  " + label + pad(label) + fmt.Sprintf("%*s", sizeW, utils.HumanSize(res.size)) + "\n"
 		for _, item := range res.items {
-			s += ui.StyleFaint.Render("    - " + m.truncate(item, m.width-8)) + "\n"
+			s += ui.StyleFaint.Render("    - "+m.truncate(item, m.width-8)) + "\n"
 		}
 	}
 	s += "  " + strings.Repeat("─", labelW+sizeW+2) + "\n"
@@ -417,9 +438,9 @@ func (m *flowModel) viewRunning() string {
 		case rowRunning:
 			line = "  " + m.spinner.View() + " Cleaning " + label + "  " + size
 		case rowDone:
-			line = "  " + ui.MarkSuccess("Cleaned " + label + "  " + size)
+			line = "  " + ui.MarkSuccess("Cleaned "+label+"  "+size)
 		case rowFailed:
-			line = "  " + ui.MarkError("Failed " + label + " — " + m.truncate(row.err.Error(), m.width-8))
+			line = "  " + ui.MarkError("Failed "+label+" — "+m.truncate(row.err.Error(), m.width-8))
 		case rowSkipped:
 			line = ui.StyleFaint.Render("  Skipped " + label + " (cancelled)")
 		}
@@ -434,17 +455,17 @@ func (m *flowModel) viewDone() string {
 	switch {
 	case m.aborted:
 		s += ui.StyleFaint.Render(fmt.Sprintf("  Cancelled — %d of %d items cleaned", m.runCount(), len(m.rows))) + "\n"
-	case m.opts.DryRun:
-		s += "  " + ui.MarkSuccess(fmt.Sprintf("Dry run — %s reclaimable", utils.HumanSize(m.total))) + "\n"
+	case m.failed > 0:
+		s += "  " + ui.MarkError(m.summaryOut) + "\n"
 	default:
-		s += "  " + ui.MarkSuccess(fmt.Sprintf("Freed %s", utils.HumanSize(m.freed))) + "\n"
+		s += "  " + ui.MarkSuccess(m.summaryOut) + "\n"
 	}
 	took := time.Since(m.started)
 	tookStr := took.Round(time.Second).String()
 	if took < time.Second {
 		tookStr = "<1s"
 	}
-	s += ui.StyleFaint.Render("  Took " + tookStr) + "\n"
+	s += ui.StyleFaint.Render("  Took "+tookStr) + "\n"
 	for i := range m.rows {
 		if m.rows[i].status == rowFailed {
 			s += "  " + ui.MarkError(fmt.Sprintf("Failed %s — %s", m.rows[i].label, m.rows[i].err)) + "\n"
@@ -457,7 +478,7 @@ func (m *flowModel) viewDone() string {
 // truncate shortens s to width columns on narrow terminals, leaving it
 // untouched when the terminal is wide enough.
 func (m *flowModel) truncate(s string, width int) string {
-	if width > 10 {
+	if width >= 1 {
 		return ansi.Truncate(s, width, "…")
 	}
 	return s
