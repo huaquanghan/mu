@@ -8,14 +8,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
-)
-
-var (
-	runSectionStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorPrimary))
-	runFaintStyle   = lipgloss.NewStyle().Faint(true)
-	runSummaryStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(ColorPrimary))
 )
 
 // Run renders a subcommand run in mu's consistent style: section headers,
@@ -32,7 +25,7 @@ func NewRun(w io.Writer) *Run {
 
 // Section prints a section header line.
 func (r *Run) Section(title string) {
-	fmt.Fprintln(r.w, "\n"+runSectionStyle.Render("  "+title))
+	fmt.Fprintln(r.w, "\n"+StyleBoldPrimary.Render("  "+title))
 }
 
 // Line prints an indented content line.
@@ -42,12 +35,12 @@ func (r *Run) Line(format string, args ...any) {
 
 // Faint prints an indented, dimmed note line.
 func (r *Run) Faint(format string, args ...any) {
-	fmt.Fprintln(r.w, runFaintStyle.Render("  "+fmt.Sprintf(format, args...)))
+	fmt.Fprintln(r.w, StyleFaint.Render("  "+fmt.Sprintf(format, args...)))
 }
 
 // Summary prints the final bold summary line.
 func (r *Run) Summary(text string) {
-	fmt.Fprintln(r.w, "\n"+runSummaryStyle.Render("  "+text))
+	fmt.Fprintln(r.w, "\n"+StyleBoldPrimary.Render("  "+text))
 }
 
 // Spinner runs fn while rendering an animated spinner labeled with label,

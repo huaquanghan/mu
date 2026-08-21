@@ -225,9 +225,7 @@ type optimizeModel struct {
 }
 
 func newOptimizeModel(steps []step, skip []string, debug bool) optimizeModel {
-	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#0097A7"))
+	sp := ui.NewSpinner()
 	return optimizeModel{spinner: sp, steps: steps, skip: skip, debug: debug}
 }
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -199,6 +200,8 @@ func runTUI() error {
 			summary, runErr = runClean()
 			if runErr == nil && summary != "Aborted." {
 				banner = "✅ " + summary
+			} else if runErr == nil {
+				banner = "Clean cancelled."
 			}
 		case "uninstall":
 			runErr = runUninstall()
@@ -207,11 +210,17 @@ func runTUI() error {
 			summary, runErr = runOptimize()
 			if runErr == nil && summary != "Aborted." {
 				banner = "✅ " + summary
+			} else if runErr == nil {
+				banner = "Optimize cancelled."
 			}
 		case "status":
 			runErr = runStatus()
 		}
+		// Invalidate the health snapshot so the next menu visit re-reads
+		// /proc and reflects the state the subcommand left behind.
+		snapshot = nil
 		if runErr != nil {
+			fmt.Fprintf(os.Stderr, "\nerror: %v\n", runErr)
 			banner, bannerErr = "❌ "+runErr.Error(), true
 		}
 	}
