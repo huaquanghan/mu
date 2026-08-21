@@ -101,9 +101,12 @@ type spinnerRunModel struct {
 }
 
 func (m spinnerRunModel) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, func() tea.Msg {
-		return spinnerDoneMsg{err: m.fn()}
-	})
+	// Route the work through ExecTerminal: when this program runs (stdout is a
+	// tty) bubbletea reads input from /dev/tty, and its raw-mode readLoop
+	// would otherwise swallow sudo's password prompt on the same terminal.
+	return tea.Batch(m.spinner.Tick, ExecTerminal(m.fn, func(err error) tea.Msg {
+		return spinnerDoneMsg{err: err}
+	}))
 }
 
 func (m spinnerRunModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

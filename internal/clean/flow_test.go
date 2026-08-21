@@ -2,6 +2,7 @@ package clean
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -213,4 +214,46 @@ func TestFlowNarrowWidth(t *testing.T) {
 	m.View() // running view must not panic at width 20
 	m = update(t, m, itemDoneMsg{idx: 0}, itemDoneMsg{idx: 1}, itemDoneMsg{idx: 2})
 	m.View() // done view must not panic at width 20
+}
+
+// TestRunCmdReleasesTerminalForSudo is the regression guard for the Unikey
+// sudo-password bug: a RequiresSudo target in a real (non-dry-run) run must be
+// dispatched via tea.Exec (its Cmd yields tea.execMsg), which releases the
+// terminal so sudo's password prompt doesn't race bubbletea's raw-mode
+// readLoop. A plain goroutine returning itemDoneMsg would mean the readLoop
+// still swallows the password. Non-sudo and dry-run targets keep the plain
+// path.
+func TestRunCmdReleasesTerminalForSudo(t *testing.T) {
+	sudoTarget := CleanTarget{
+		ID:           "apt",
+		Label:        "APT Cache",
+		RequiresSudo: true,
+		Execute:      func(bool) error { return nil },
+	}
+	plainTarget := CleanTarget{
+		ID:      "user-cache",
+		Label:   "User cache",
+		Execute: func(bool) error { return nil },
+	}
+	m := newFlowModel(Options{}, []CleanTarget{sudoTarget, plainTarget})
+	m.results = []scanResult{
+		{target: sudoTarget, size: sizeA},
+		{target: plainTarget, size: sizeB},
+	}
+
+	if msg := m.runCmd(0)(); reflect.TypeOf(msg).Name() != "execMsg" {
+		t.Fatalf("sudo target runCmd = %T (%s), want tea.execMsg (terminal released)", msg, reflect.TypeOf(msg).Name())
+	}
+	msg := m.runCmd(1)()
+	if _, ok := msg.(itemDoneMsg); !ok {
+		t.Fatalf("non-sudo target runCmd = %T, want itemDoneMsg", msg)
+	}
+
+	// Dry-run never executes sudo, so it must not take the tea.Exec path.
+	dry := newFlowModel(Options{DryRun: true}, []CleanTarget{sudoTarget})
+	dry.results = []scanResult{{target: sudoTarget, size: sizeA}}
+	msg = dry.runCmd(0)()
+	if _, ok := msg.(itemDoneMsg); !ok {
+		t.Fatalf("dry-run sudo target runCmd = %T, want itemDoneMsg", msg)
+	}
 }

@@ -122,10 +122,13 @@ func Run(opts Options) (string, error) {
 	defer utils.CloseLogger()
 
 	var programOptions []tea.ProgramOption
-	if !isatty.IsTerminal(os.Stdin.Fd()) {
+	interactive := isatty.IsTerminal(os.Stdin.Fd())
+	if !interactive {
 		programOptions = append(programOptions, tea.WithInput(nil))
 	}
-	p := tea.NewProgram(newOptimizeModel(steps, skip, opts.Debug), programOptions...)
+	model := newOptimizeModel(steps, skip, opts.Debug)
+	model.interactive = interactive
+	p := tea.NewProgram(model, programOptions...)
 	final, err := p.Run()
 	if err != nil {
 		return "", err
@@ -215,6 +218,7 @@ type optimizeModel struct {
 	done          bool
 	debug         bool
 	skip          []string
+	interactive   bool
 	results       []StepResult
 	stopRequested bool
 	cancelled     bool
@@ -238,6 +242,25 @@ func (m optimizeModel) runCurrentStep() tea.Cmd {
 	s := m.steps[m.current]
 	if slices.Contains(m.skip, s.id) {
 		return func() tea.Msg { return stepDoneMsg{id: s.id, status: StepSkipped} }
+	}
+	if m.interactive {
+		// Wrap the step in ui.ExecTerminal so bubbletea releases the terminal
+		// before sudo reads its password — without the release, the raw-mode
+		// readLoop swallows keystrokes and the sudo prompt always fails.
+		var outBuf strings.Builder
+		return ui.ExecTerminal(func() error {
+			return s.run(&outBuf)
+		}, func(err error) tea.Msg {
+			output := strings.TrimRight(outBuf.String(), "\n")
+			if len(output) > 4096 {
+				output = output[:4096] + "\n... (truncated)"
+			}
+			status := StepSuccess
+			if err != nil {
+				status = StepFailed
+			}
+			return stepDoneMsg{id: s.id, err: err, output: output, status: status}
+		})
 	}
 	return func() tea.Msg {
 		var buf strings.Builder

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -59,6 +61,34 @@ func TestOptimizeModelRecordsSkippedStep(t *testing.T) {
 	msg := m.runCurrentStep()().(stepDoneMsg)
 	if msg.status != StepSkipped {
 		t.Fatalf("status = %s", msg.status)
+	}
+}
+
+// TestOptimizeStepRunsWithTerminalRelease is the regression guard for the
+// sudo-password bug: in an interactive run (stdin is a tty, so bubbletea's
+// readLoop is live) a step must be dispatched via tea.Exec (its Cmd yields
+// tea.execMsg) so the terminal is released before sudo reads its password.
+// A skipped or non-interactive step keeps the plain goroutine path.
+func TestOptimizeStepRunsWithTerminalRelease(t *testing.T) {
+	steps := []step{{id: "apt", desc: "apt", run: func(io.Writer) error { return nil }}}
+	m := newOptimizeModel(steps, nil, false)
+
+	// Non-interactive (stdin is not a tty): plain path, plain goroutine msg.
+	if msg := m.runCurrentStep()(); reflect.TypeOf(msg) != reflect.TypeOf(stepDoneMsg{}) {
+		t.Fatalf("non-interactive step = %T, want stepDoneMsg", msg)
+	}
+
+	// Interactive: tea.Exec path (execMsg), so the terminal is released.
+	m.interactive = true
+	if msg := m.runCurrentStep()(); reflect.TypeOf(msg).Name() != "execMsg" {
+		t.Fatalf("interactive step = %T (%s), want tea.execMsg (terminal released)", msg, reflect.TypeOf(msg).Name())
+	}
+
+	// Interactive but skipped: plain path, no terminal release needed.
+	m = newOptimizeModel(steps, []string{"apt"}, false)
+	m.interactive = true
+	if msg := m.runCurrentStep()(); reflect.TypeOf(msg) != reflect.TypeOf(stepDoneMsg{}) {
+		t.Fatalf("skipped interactive step = %T, want stepDoneMsg", msg)
 	}
 }
 

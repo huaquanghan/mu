@@ -141,8 +141,19 @@ func (m *flowModel) scanCmd(i int) tea.Cmd {
 }
 
 // runCmd executes one target; the next one is only issued after this completes.
+// Targets that need sudo run through ui.ExecTerminal: sudo reads its password
+// from the terminal, and releasing the terminal (tea.Exec) stops bubbletea's
+// raw-mode input reader from racing the prompt — which swallowed the password
+// (broken further by an IME like Unikey transforming the keystrokes).
 func (m *flowModel) runCmd(i int) tea.Cmd {
 	t := m.results[i].target
+	if !m.opts.DryRun && t.RequiresSudo {
+		return ui.ExecTerminal(func() error {
+			return t.Execute(m.opts.DryRun)
+		}, func(err error) tea.Msg {
+			return itemDoneMsg{idx: i, err: err}
+		})
+	}
 	return func() tea.Msg {
 		return itemDoneMsg{idx: i, err: t.Execute(m.opts.DryRun)}
 	}
