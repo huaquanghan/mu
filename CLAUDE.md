@@ -68,3 +68,7 @@ go run ./cmd/mu uninstall
 - `tea.WithAltScreen()` used for all full-screen TUI programs (main menu, uninstall, status).
 
 **Module path:** `github.com/huaquanghan/mu` — used in all import paths even when developing locally.
+
+<!-- ZHARNESS:BEGIN -->
+@AGENTS.md
+<!-- ZHARNESS:END -->
