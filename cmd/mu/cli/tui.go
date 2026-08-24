@@ -187,9 +187,6 @@ func runTUI() error {
 			return nil
 		}
 		cursor = final.cursor
-		if final.snapshot != nil {
-			snapshot = final.snapshot
-		}
 		banner, bannerErr = "", false
 		var runErr error
 		switch final.chosen {

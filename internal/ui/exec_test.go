@@ -27,7 +27,6 @@ func TestExecTerminalDispatchesViaExecMsg(t *testing.T) {
 
 // execProbeModel runs fn via ExecTerminal on Init and reports back.
 type execProbeModel struct {
-	ran   bool
 	cbErr error
 }
 
