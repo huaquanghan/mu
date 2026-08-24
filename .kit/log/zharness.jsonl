@@ -123,3 +123,12 @@
 {"argv":["query","phases","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-21T03:18:55Z"}
 {"argv":["preflight","git","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-21T04:36:35Z"}
 {"argv":["query","check","--latest","--json"],"error_code":"","exit":0,"ms":0,"ts":"2026-08-21T04:36:38Z"}
+{"argv":["preflight","watzup","--json"],"error_code":"","exit":0,"ms":8,"ts":"2026-08-24T08:10:52Z"}
+{"argv":["query","plan","--section","current-state","--json"],"error_code":"none","exit":1,"ms":0,"ts":"2026-08-24T08:11:17Z"}
+{"argv":["query","traces","--tail","5","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-24T08:11:17Z"}
+{"argv":["query","decisions","--tail","5","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-24T08:11:17Z"}
+{"argv":["query","checks","--tail","1","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-24T08:11:17Z"}
+{"argv":["preflight","check","--mode","full","--json"],"error_code":"","exit":0,"ms":2,"ts":"2026-08-24T08:33:46Z"}
+{"argv":["preflight","check","--mode","bounded","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-24T08:34:17Z"}
+{"argv":["preflight","git","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-24T08:52:19Z"}
+{"argv":["query","check","--latest","--json"],"error_code":"","exit":0,"ms":1,"ts":"2026-08-24T08:52:50Z"}
