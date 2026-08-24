@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -214,6 +215,127 @@ func TestFlowNarrowWidth(t *testing.T) {
 	m.View() // running view must not panic at width 20
 	m = update(t, m, itemDoneMsg{idx: 0}, itemDoneMsg{idx: 1}, itemDoneMsg{idx: 2})
 	m.View() // done view must not panic at width 20
+}
+
+func TestFlowInitEmptyTargets(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1)
+	m.targets = nil
+	if cmd := m.Init(); cmd != nil {
+		t.Fatal("empty targets must not start a scan")
+	}
+	if m.state != stateDone {
+		t.Fatalf("state = %v, want stateDone", m.state)
+	}
+	if m.summaryOut != "Nothing to clean." {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Nothing to clean.")
+	}
+}
+
+func TestFlowInitStartsScan(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1)
+	if cmd := m.Init(); cmd == nil {
+		t.Fatal("expected the spinner+scan batch cmd for non-empty targets")
+	}
+}
+
+func TestScanCmdRunsTarget(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1)
+	msg := m.scanCmd(1)()
+	sm, ok := msg.(scanTargetMsg)
+	if !ok {
+		t.Fatalf("scanCmd = %T, want scanTargetMsg", msg)
+	}
+	if sm.idx != 1 || sm.size != sizeB || sm.err != nil {
+		t.Fatalf("scanTargetMsg = %+v, want idx 1 size %d no error", sm, sizeB)
+	}
+}
+
+func TestScanCmdCollectsPreview(t *testing.T) {
+	target := CleanTarget{
+		ID:    "x",
+		Label: "X Cache",
+		Scan:  func() (int64, error) { return sizeA, nil },
+		Preview: func() ([]string, error) {
+			return []string{"/tmp/a"}, errors.New("preview boom")
+		},
+		Execute: func(bool) error { return nil },
+	}
+	m := newFlowModel(Options{}, []CleanTarget{target})
+	msg := m.scanCmd(0)()
+	sm, ok := msg.(scanTargetMsg)
+	if !ok {
+		t.Fatalf("scanCmd = %T, want scanTargetMsg", msg)
+	}
+	if len(sm.items) != 1 || sm.items[0] != "/tmp/a" {
+		t.Fatalf("items = %v, want [/tmp/a]", sm.items)
+	}
+	if sm.previewErr == nil || sm.previewErr.Error() != "preview boom" {
+		t.Fatalf("previewErr = %v, want preview boom", sm.previewErr)
+	}
+}
+
+func TestQuitAbortReportsScanErrors(t *testing.T) {
+	m := newTestFlow(Options{}, 0, -1)
+	m = update(t, m,
+		scanTargetMsg{idx: 0, err: errors.New("scan boom")},
+		scanTargetMsg{idx: 1, size: sizeB},
+		scanTargetMsg{idx: 2, size: sizeC},
+	)
+	if cmd := m.quitAbort(); cmd == nil {
+		t.Fatal("quitAbort must return tea.Quit")
+	}
+	if m.runErr == nil || !strings.Contains(m.runErr.Error(), "scan boom") {
+		t.Fatalf("runErr = %v, want joined scan error", m.runErr)
+	}
+}
+
+func TestQuitAbortPlain(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1)
+	if cmd := m.quitAbort(); cmd == nil {
+		t.Fatal("quitAbort must return tea.Quit")
+	}
+	if m.summaryOut != "Aborted." {
+		t.Fatalf("summaryOut = %q, want %q", m.summaryOut, "Aborted.")
+	}
+}
+
+func TestViewScanningProgress(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1)
+	if v := m.View(); !strings.Contains(v, "Scanning system") {
+		t.Fatalf("initial scanning view missing title: %q", v)
+	}
+	m = update(t, m, scanTargetMsg{idx: 0, size: sizeA})
+	if v := m.View(); !strings.Contains(v, "(1 of 3): Beta Logs") {
+		t.Fatalf("scanning view missing progress + next label: %q", v)
+	}
+}
+
+func TestViewConfirm(t *testing.T) {
+	m := scanAll(t, newTestFlow(Options{}, -1, -1))
+	m = update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.state != stateConfirm {
+		t.Fatalf("state = %v, want stateConfirm", m.state)
+	}
+	v := m.View()
+	if !strings.Contains(v, "Proceed to clean?") || !strings.Contains(v, "3 item(s)") {
+		t.Fatalf("confirm view missing prompt or count: %q", v)
+	}
+}
+
+func TestTruncateUnclamped(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1)
+	if got := m.truncate("abcdef", 0); got != "abcdef" {
+		t.Fatalf("truncate with width 0 = %q, want unchanged", got)
+	}
+}
+
+func TestUpdateSpinnerTickAndUnknownMsgs(t *testing.T) {
+	m := newTestFlow(Options{}, -1, -1) // scanning: spinner visible
+	update(t, m, spinner.TickMsg{})     // must keep animating without panic
+	update(t, m, struct{}{})            // unknown messages are ignored
+	m = scanAll(t, m)
+	update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // → confirm (static screen)
+	update(t, m, spinner.TickMsg{})              // tick dropped on static screens
 }
 
 // TestRunCmdReleasesTerminalForSudo is the regression guard for the Unikey
