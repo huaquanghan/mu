@@ -1,6 +1,6 @@
 # mu — Mole Ubuntu
 
-A 4 MB binary that cleans, uninstalls, optimizes, and monitors your Ubuntu system. Everything destructive shows you what it's about to do before it does it. Files go to trash, not `/dev/null`.
+A 2.3 MB binary that cleans, uninstalls, optimizes, and monitors your Ubuntu system. Everything destructive shows you what it's about to do before it does it. Files go to trash, not `/dev/null`.
 
 ---
 
@@ -13,15 +13,15 @@ curl -fsSL https://raw.githubusercontent.com/huaquanghan/mu/main/scripts/install
 
 > Install verifies the binary against a release `checksums.txt` asset (SHA-256). Releases must publish `checksums.txt` next to the `mu` binary (`make checksums` after `make build`).
 
-**From source** (requires Go 1.25.8+):
+**From source** (requires the Rust toolchain — rustup stable):
 ```bash
 git clone https://github.com/huaquanghan/mu
 cd mu
-make build          # → ./bin/mu
+make build          # cargo build --release → ./bin/mu
 make install-local  # → ~/.local/bin/mu (no sudo)
 ```
 
-> Ubuntu 22.04 ships Go 1.18. Install a newer toolchain: `sudo snap install go --classic`
+> Install Rust via `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh` or `sudo snap install rustup --classic`
 
 ---
 
@@ -69,6 +69,7 @@ Scans and frees disk space across:
 |----------|:-------:|---------------|
 | User cache (`~/.cache`) | ✓ | |
 | Thumbnail cache | ✓ | |
+| Font cache (all users) | ✓ | |
 | APT package cache | ✓ | |
 | Journal logs | ✓ | |
 | Snap disabled revisions | ✓ | |
@@ -103,7 +104,7 @@ Live-updating dashboard reading directly from `/proc` and mountinfo. Shows CPU%,
 
 ## Configuration
 
-`~/.config/mu/config.toml` — overrides defaults from `configs/default-whitelist.toml`:
+`~/.config/mu/config.toml` — overrides defaults from built-in defaults (see `src/default-whitelist.toml`):
 
 ```toml
 [protected_paths]
@@ -122,7 +123,7 @@ steps = ["apt"]   # always skip apt in optimize
 
 - Ubuntu 22.04 / 24.04 LTS (primary). Debian 12+, Pop!\_OS, Mint: compatible, not officially tested.
 - Runtime: `gio` (from `glib2`), `dpkg-query`, `journalctl`. `snap` and `docker` are optional.
-- Build: Go 1.25.8+.
+- Build: Rust stable toolchain (cargo), via rustup.
 
 ---
 

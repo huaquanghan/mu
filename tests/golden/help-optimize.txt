@@ -1,0 +1,20 @@
+Runs the following maintenance tasks:
+  1. apt-get update && apt-get autoremove --purge
+  2. journalctl --vacuum-size=500M
+  3. update-mime-database, fc-cache
+
+Use --dry-run to see what would run without executing.
+Use --skip to exclude specific steps (e.g. --skip=apt,journal).
+Use --yes to skip the confirmation prompt (for scripting).
+
+Usage:
+  mu optimize [flags]
+
+Flags:
+      --dry-run        Preview actions without making changes
+  -h, --help           help for optimize
+      --skip strings   Steps to skip (apt, journal, caches)
+  -y, --yes            Skip confirmation prompt
+
+Global Flags:
+      --debug   Enable verbose debug logging

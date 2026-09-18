@@ -1,0 +1,25 @@
+Scan and remove:
+  • User cache (~/.cache)
+  • APT package cache
+  • Snap disabled revisions
+  • Journal logs (older than 30 days)
+  • Complete APT-policy autoremove candidate set
+  • Browser caches (Chrome, Firefox, VSCode)
+  • Thumbnail cache
+  • Docker build cache (if Docker is installed)
+
+Use --dry-run to preview what would be removed without making changes.
+Use --include=browser-cache to enable opt-in categories.
+Use --yes to skip the confirmation prompt (for scripting).
+
+Usage:
+  mu clean [flags]
+
+Flags:
+      --dry-run           Preview actions without making changes
+  -h, --help              help for clean
+      --include strings   Opt-in categories (e.g. browser-cache)
+  -y, --yes               Skip confirmation prompt
+
+Global Flags:
+      --debug   Enable verbose debug logging

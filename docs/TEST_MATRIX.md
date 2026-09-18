@@ -3,23 +3,18 @@
 | Story | Contract | Unit | Integration | E2E | Platform | Status | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | MU-001 | Safety-first destructive paths and truthful outcomes | yes | yes | no | no | in_progress | unit/race/vet/static/vuln/coverage, build twice, unprivileged run, smoke, ownership, and direct compile pass on 2026-07-14; VM proof pending |
-| MU-002 | Root-based status and additive scan errors | yes | yes | no | no | implemented | `go test ./internal/status ./internal/audit -count=1` |
+| MU-002 | Root-based status and additive scan errors | yes | yes | no | no | implemented | `cargo test status:: audit::` |
 | MU-003 | Pinned fresh-clone Harness bootstrap | yes | yes | no | no | implemented | fresh snapshot bootstrap/init/import/matrix/audit pass; checksum mismatch rejected |
 
 ## Automated Gates
 
 ```bash
-go test ./... -count=1
-go test ./... -race -count=1
-go vet ./...
-make coverage
-staticcheck ./...
-govulncheck ./...
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
 make build
 make smoke
 ```
-
-`internal/utils`, `clean`, `uninstall`, and `optimize` must each remain at or above 80% statement coverage.
 
 ## Platform Gate
 

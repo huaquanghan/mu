@@ -1,21 +1,25 @@
 BINARY    := mu
-MODULE    := github.com/huaquanghan/mu
-CMD       := ./cmd/mu
 BUILD_DIR := ./bin
+# musl produces a fully static binary — the Go build's `CGO_ENABLED=0`
+# equivalent. Requires `rustup target add x86_64-unknown-linux-musl`.
+RS_TARGET := x86_64-unknown-linux-musl
+RS_BINARY := ./target/$(RS_TARGET)/release/$(BINARY)
 INSTALL_DIR := $(HOME)/.local/bin
-VERSION   ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
-LDFLAGS   := -s -w -X $(MODULE)/cmd/mu/cli.Version=$(VERSION)
 SHELL     := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 
-.PHONY: build install install-local uninstall test test-verbose test-race coverage smoke run clean lint release deps checksums harness-bootstrap harness-init
+.PHONY: build install install-local uninstall test test-verbose smoke run clean lint fmt release checksums harness-bootstrap harness-init
 
 # ── Build ────────────────────────────────────────────────────────────────────
 
+# cargo release build (static musl + stripped), copied to bin/mu
+# (install/checksums/smoke consume bin/mu; version comes from build.rs
+# `git describe` — same as the old -X ldflag).
 build:
+	cargo build --release --target $(RS_TARGET)
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) $(CMD)
-	@echo "Built $(BUILD_DIR)/$(BINARY) ($(shell du -sh $(BUILD_DIR)/$(BINARY) | cut -f1))"
+	install -m755 $(RS_BINARY) $(BUILD_DIR)/$(BINARY)
+	@echo "Built $(BUILD_DIR)/$(BINARY) ($$(du -sh $(BUILD_DIR)/$(BINARY) | cut -f1))"
 
 # ── Install ───────────────────────────────────────────────────────────────────
 
@@ -38,20 +42,10 @@ uninstall:
 # ── Test ─────────────────────────────────────────────────────────────────────
 
 test:
-	go test ./... -count=1
+	cargo test
 
 test-verbose:
-	go test ./... -count=1 -v
-
-test-race:
-	go test ./... -count=1 -race
-
-coverage:
-	@for pkg in utils clean uninstall optimize; do \
-		go test ./internal/$$pkg -count=1 -coverprofile=/tmp/mu-$$pkg.cover >/dev/null; \
-		pct=$$(go tool cover -func=/tmp/mu-$$pkg.cover | awk '/^total:/ {gsub("%", "", $$3); print $$3}'); \
-		awk -v pkg="$$pkg" -v pct="$$pct" 'BEGIN { printf "%s: %.1f%%\n", pkg, pct; if (pct < 80) exit 1 }'; \
-	done
+	cargo test -- --nocapture
 
 # Smoke test: runs the non-destructive flags against the live system.
 # Does not require YES confirmation or sudo.
@@ -82,18 +76,14 @@ run: build
 	@$(BUILD_DIR)/$(BINARY)
 
 lint:
-	go vet ./...
-	staticcheck ./...
+	cargo clippy --all-targets -- -D warnings
+
+fmt:
+	cargo fmt --check
 
 clean:
 	rm -rf $(BUILD_DIR)
-
-deps:
-	go get github.com/spf13/cobra@latest
-	go get github.com/charmbracelet/bubbletea@latest
-	go get github.com/charmbracelet/lipgloss@latest
-	go get github.com/charmbracelet/bubbles@latest
-	go mod tidy
+	cargo clean
 
 # checksums.txt for GitHub release assets (required by scripts/install.sh).
 # After tagging a release binary, attach both bin/mu and bin/checksums.txt.
@@ -102,8 +92,16 @@ checksums: build
 	@echo "Wrote $(BUILD_DIR)/checksums.txt:"
 	@cat $(BUILD_DIR)/checksums.txt
 
+# Cargo-compatible release: tag first (`git tag vX.Y.Z`), then this builds the
+# release binary, writes checksums.txt, and publishes both assets via gh.
+# The tag check runs before the build so a missing tag fails fast.
+# scripts/install.sh consumes exactly this artifact pair (mu + checksums.txt).
 release:
-	goreleaser release --clean
+	@tag=$$(git describe --tags --exact-match 2>/dev/null) || { \
+		echo "error: HEAD is not an exact tag — run 'git tag vX.Y.Z' first" >&2; exit 1; }; \
+	$(MAKE) checksums; \
+	gh release create "$$tag" $(BUILD_DIR)/$(BINARY) $(BUILD_DIR)/checksums.txt \
+		--title "$$tag" --generate-notes
 
 harness-bootstrap:
 	./scripts/harness-bootstrap.sh

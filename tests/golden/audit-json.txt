@@ -1,0 +1,88 @@
+{
+  "health": 58,
+  "disk_free_pct_root": 47.15755798714239,
+  "reclaimable_bytes": 1614157158,
+  "findings": [
+    {
+      "id": "clean:journal-logs",
+      "severity": "warning",
+      "title": "Journal Logs",
+      "detail": "Estimated reclaimable: space under Journal Logs. Requires sudo.",
+      "bytes": 1395864371,
+      "action": "clean:journal-logs",
+      "opt_in": false,
+      "selectable": true,
+      "default_selected": true
+    },
+    {
+      "id": "clean:user-cache",
+      "severity": "info",
+      "title": "User Cache (~/.cache)",
+      "detail": "Estimated reclaimable: space under User Cache (~/.cache).",
+      "bytes": 202498651,
+      "action": "clean:user-cache",
+      "opt_in": false,
+      "selectable": true,
+      "default_selected": false
+    },
+    {
+      "id": "clean:browser-cache",
+      "severity": "info",
+      "title": "Browser Caches (Chrome/Firefox/VSCode)",
+      "detail": "Estimated reclaimable: space under Browser Caches (Chrome/Firefox/VSCode). Opt-in category — not selected by default.",
+      "bytes": 11357796,
+      "action": "clean:browser-cache",
+      "opt_in": true,
+      "selectable": true,
+      "default_selected": false
+    },
+    {
+      "id": "clean:apt-cache",
+      "severity": "info",
+      "title": "APT Package Cache",
+      "detail": "Estimated reclaimable: space under APT Package Cache. Requires sudo.",
+      "bytes": 2738284,
+      "action": "clean:apt-cache",
+      "opt_in": false,
+      "selectable": true,
+      "default_selected": false
+    },
+    {
+      "id": "clean:font-cache",
+      "severity": "info",
+      "title": "Font Cache (all users)",
+      "detail": "Estimated reclaimable: space under Font Cache (all users). Requires sudo.",
+      "bytes": 1698056,
+      "action": "clean:font-cache",
+      "opt_in": false,
+      "selectable": true,
+      "default_selected": false
+    },
+    {
+      "id": "optimize:caches",
+      "severity": "info",
+      "title": "Refresh icon/font/MIME caches",
+      "detail": "Low priority maintenance; rarely frees disk space.",
+      "bytes": 0,
+      "action": "optimize:caches",
+      "opt_in": false,
+      "selectable": true,
+      "default_selected": false
+    },
+    {
+      "id": "health:score",
+      "severity": "info",
+      "title": "System health score is moderate (58/100)",
+      "detail": "No critical health issue; cleanup may still reclaim space.",
+      "bytes": 0,
+      "action": "none",
+      "opt_in": false,
+      "selectable": false,
+      "default_selected": false
+    }
+  ],
+  "recommended_commands": [
+    "mu clean --dry-run",
+    "mu clean"
+  ]
+}

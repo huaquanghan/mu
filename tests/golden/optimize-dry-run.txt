@@ -1,0 +1,6 @@
+
+  Optimize plan
+  [run]   apt-get update && apt-get autoremove --purge
+  [run]   journalctl --vacuum-size=500M
+  [run]   update icon/mime/font caches
+  Dry run — nothing executed.

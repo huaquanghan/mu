@@ -1,38 +1,26 @@
-# Agent Instructions
+# Agents
 
-## Project Skills
-
-Use `.codex/skills/harness-intake-griller/SKILL.md` when a request needs
-discussion, feature intake, docs, or story shaping before Symphony execution.
-The skill is project-scoped; do not use a global copy as the source of truth.
-
-<!-- HARNESS:BEGIN -->
-## Harness
-
-This repo uses Harness. Before work, read:
-
-- `README.md`
-- `docs/HARNESS.md`
-- `docs/FEATURE_INTAKE.md`
-- `docs/ARCHITECTURE.md`
-- `docs/CONTEXT_RULES.md`
-- `docs/TOOL_REGISTRY.md`
-- If `scripts/bin/harness-cli` is missing, run `make harness-bootstrap` first.
-- `scripts/bin/harness-cli query matrix` on macOS/Linux, or `.\scripts\bin\harness-cli.exe query matrix` on Windows
-
-Use the Rust Harness CLI at `scripts/bin/harness-cli` on macOS/Linux or
-`scripts/bin/harness-cli.exe` on Windows as the main operational tool. Before a
-step that could use an external tool, run `scripts/bin/harness-cli query tools
---capability <name> --status present` to see what is equipped; an absent
-capability is a clean skip.
-<!-- HARNESS:END -->
 
 <!-- ZHARNESS:BEGIN -->
 ## Harness
 
-Run `zharness --version`, then `zharness preflight <stage> [--mode <mode>] --json` for every workflow skill invocation. Follow a returned stop and recovery exactly.
+Start with the requested outcome and use the repository as the system of record.
+Read `docs/WORKFLOW.md` and only relevant product, design, plan, code, and
+validation material.
 
-Read `docs/WORKFLOW.md`, then only the returned stage playbook and the repository material relevant to the requested outcome — start that search at `docs/README.md`, this repository's authored documentation map; if it is absent, proceed without it, which is not an error. Repository docs, code, tests, and observable behavior are authoritative; the database is a lifecycle ledger and recovery index.
+- Answers, explanations, reviews, diagnoses, plans, and status reports are
+  read-only. Inspect only what is needed; change nothing.
+- For a bounded change, inspect affected behavior and proof, implement, and
+  validate. No plan file is required.
+- Use one `docs/plans/active/` file when work spans sessions, coordinates
+  contributors, has dependencies, or needs recovery. Move it to
+  `docs/plans/completed/` only after validation.
+- Before editing, identify repository authority for each new externally
+  observable policy. If materially different choices remain open, stop before
+  edits; configurable defaults are not authority.
+- Claim completion only with executable or observable evidence. Report outcome,
+  changes, validation, and unresolved risks.
 
-Read-only and bounded work may use reduced mode and must not mutate harness state. Durable planning, full execution, full checks, and durable handoffs require an initialized database. Claim completion only with executable or observable evidence.
+The `zharness` binary is install / update / uninstall only. It does not run
+the lifecycle. There is no task database. There is no parallel control-plane state.
 <!-- ZHARNESS:END -->

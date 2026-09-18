@@ -9,3 +9,8 @@ scripts/bin/harness-cli
 scripts/bin/harness-cli.exe
 .kit/cache/
 .kit/conflicts/
+# zharness v0.15 managed set
+/.zharness/
+
+# Rust port
+target/

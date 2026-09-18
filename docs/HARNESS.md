@@ -34,7 +34,7 @@ Filesystem deletion, APT/Snap work, privilege changes, safety configuration, ins
 scripts/bin/harness-cli init
 scripts/bin/harness-cli import brownfield
 scripts/bin/harness-cli intake --type maintenance --summary "..." --lane high-risk
-scripts/bin/harness-cli story add --id MU-001 --title "..." --lane high-risk --verify "go test ./... -count=1"
+scripts/bin/harness-cli story add --id MU-001 --title "..." --lane high-risk --verify "cargo test"
 scripts/bin/harness-cli story update --id MU-001 --status in_progress
 scripts/bin/harness-cli story verify MU-001
 scripts/bin/harness-cli story verify-all

@@ -1,0 +1,6 @@
+# Go's test runner executes tests serially unless t.Parallel() is called; the
+# Rust port's test suite was written against that invariant (global logger,
+# oplog init/close). libtest defaults to parallel threads, which raced on the
+# shared LOG_FILE handle. Pin serial execution to restore the Go semantics.
+[env]
+RUST_TEST_THREADS = "1"

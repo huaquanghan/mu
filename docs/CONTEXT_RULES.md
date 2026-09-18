@@ -18,10 +18,10 @@ If the binary is missing, run `make harness-bootstrap` first.
 
 | Surface | Read |
 | --- | --- |
-| deletion, cache, XDG, whitelist, trash | `internal/utils/`, `internal/clean/`, safety story validation |
-| APT, Snap, uninstall, privilege | `internal/clean/`, `internal/uninstall/`, `internal/optimize/` |
-| status or audit report | `internal/status/`, `internal/audit/`, JSON tests |
-| CLI flags or exit codes | `cmd/mu/cli/`, affected internal package, smoke target |
+| deletion, cache, XDG, whitelist, trash | `src/trash.rs`, `src/clean/`, `src/xdg.rs`, `src/whitelist.rs`, safety story validation |
+| APT, Snap, uninstall, privilege | `src/clean/`, `src/uninstall/`, `src/optimize.rs` |
+| status or audit report | `src/status/`, `src/audit/`, JSON tests |
+| CLI flags or exit codes | `src/cli.rs`, affected `src/` module, smoke target |
 | Harness bootstrap or durable records | `scripts/README.md`, decision 0005, schema files, CLI help |
 | release | CI workflow, Makefile, dependency files, VM evidence |
 

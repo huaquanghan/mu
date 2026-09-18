@@ -1,0 +1,26 @@
+[package]
+name = "mu"
+version = "0.1.0"
+edition = "2024"
+description = "Deep clean & optimize tool for Ubuntu"
+publish = false
+
+[[bin]]
+name = "mu"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# toml pinned below 1.1.6 (published 2026-09-10, < 1 week old at pin time).
+toml = "=1.1.5"
+ratatui = "0.30"
+crossterm = "0.29"
+nix = { version = "0.31", features = ["fs", "process", "user"] }
+time = { version = "0.3", features = ["local-offset", "formatting"] }
+
+[profile.release]
+# Go built with `-s -w` — match by stripping symbols from the release binary.
+strip = true

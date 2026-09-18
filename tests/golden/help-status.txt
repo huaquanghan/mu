@@ -1,0 +1,21 @@
+Displays a real-time system health dashboard with visual metric bars.
+
+  • Aggregate CPU usage
+  • RAM and swap usage
+  • Disk usage for mounted filesystems (used % bars)
+  • Network I/O rates (active interfaces)
+  • Computed health score (0-100)
+
+Use --json to output a structured JSON snapshot and exit.
+When piped (stdout is not a terminal), JSON is used automatically.
+Press q or Ctrl+C to exit the dashboard.
+
+Usage:
+  mu status [flags]
+
+Flags:
+  -h, --help   help for status
+      --json   Output JSON snapshot and exit
+
+Global Flags:
+      --debug   Enable verbose debug logging

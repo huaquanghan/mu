@@ -1,0 +1,26 @@
+Scan the system for reclaimable space and health pressure, then
+guide you through applying safe fixes (clean targets and optimize steps).
+
+Interactive (default on a TTY):
+  scan → select findings → confirm → apply → re-score
+
+Scripting:
+  mu audit --report     human-readable report (exit 1=warning, 2=critical)
+  mu audit --json       structured JSON report
+  mu audit --dry-run    wizard/report apply path without making changes
+
+Opt-in clean categories (browser-cache, docker) appear in the audit but are
+not selected unless listed in --include.
+
+Usage:
+  mu audit [flags]
+
+Flags:
+      --dry-run           Preview apply actions without making changes
+  -h, --help              help for audit
+      --include strings   Pre-select opt-in clean categories (e.g. browser-cache)
+      --json              Print JSON findings and exit
+      --report            Print findings and exit (no apply)
+
+Global Flags:
+      --debug   Enable verbose debug logging

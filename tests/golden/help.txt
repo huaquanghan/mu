@@ -1,0 +1,24 @@
+mu (Mole Ubuntu) — safe, fast system cleaner and optimizer.
+
+Run without arguments to open the interactive TUI menu.
+All destructive commands support --dry-run for safe previewing.
+
+Usage:
+  mu [flags]
+  mu [command]
+
+Available Commands:
+  audit       Diagnose cleanup issues and apply recommended fixes
+  clean       Free disk space by removing caches, logs, and old packages
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  optimize    Run system maintenance: apt autoremove, journal vacuum, cache refresh
+  status      Live system dashboard: CPU, RAM, disk, network, health score
+  uninstall   Remove apps and all their config, cache, and data remnants
+
+Flags:
+      --debug     Enable verbose debug logging
+  -h, --help      help for mu
+  -v, --version   version for mu
+
+Use "mu [command] --help" for more information about a command.

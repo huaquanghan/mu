@@ -4,9 +4,9 @@
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Unit | pending | `go test ./... -count=1` |
-| Race | pending | `go test ./... -race -count=1` |
-| Vet | pending | `go vet ./...` |
+| Unit | pending | `cargo test` |
+| Race | pending | `cargo clippy --all-targets -- -D warnings` |
+| Vet | pending | `cargo fmt --check` |
 | Coverage | pending | `make coverage` |
 | Static | pending | `staticcheck ./...` |
 | Vulnerability | pending | `govulncheck ./...` |

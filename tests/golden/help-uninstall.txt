@@ -1,0 +1,16 @@
+Interactively select installed packages to remove.
+Shows estimated disk usage per package including remnants in:
+  ~/.config/<app>  ~/.local/share/<app>  ~/.cache/<app>
+
+Executes: apt purge <pkg> + remnant cleanup.
+Use --dry-run to preview without removing anything.
+
+Usage:
+  mu uninstall [flags]
+
+Flags:
+      --dry-run   Preview actions without making changes
+  -h, --help      help for uninstall
+
+Global Flags:
+      --debug   Enable verbose debug logging

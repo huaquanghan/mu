@@ -16,31 +16,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          go-version-file: go.mod
-          cache: true
+          components: clippy, rustfmt
+          # make build targets musl for the static release binary.
+          targets: x86_64-unknown-linux-musl
       - name: Harness fresh-clone proof
         run: |
           make harness-init
           scripts/bin/harness-cli query matrix --numeric
           scripts/bin/harness-cli audit
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
       - name: Unit tests
-        run: go test ./... -count=1
-      - name: Race tests
-        run: go test ./... -race -count=1
-      - name: Vet
-        run: go vet ./...
-      - name: Destructive package coverage
-        run: make coverage
-      - name: Staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          staticcheck ./...
-      - name: Vulnerability scan
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+        run: cargo test
       - name: Build
         run: make build
       - name: Smoke

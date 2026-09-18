@@ -25,9 +25,9 @@ fixtures needed for repeatable proof.
 ## Commands
 
 ```bash
-go test ./... -count=1
-go test ./... -race -count=1
-go vet ./...
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
 make coverage
 staticcheck ./...
 govulncheck ./...

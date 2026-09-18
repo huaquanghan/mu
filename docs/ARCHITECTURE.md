@@ -1,18 +1,19 @@
 # Architecture
 
-`mu` is a Go 1.25.8 CLI for Ubuntu. `cmd/mu/main.go` enters Cobra commands under `cmd/mu/cli/`; no-argument use opens the Bubble Tea menu.
+`mu` is a Rust CLI for Ubuntu (ported 1:1 from the Go original, removed at the parity-gate cutover). `src/main.rs` enters `cli::run()` — a manual Cobra-compatible argv parser in `src/cli.rs`; no-argument use on a TTY opens the ratatui menu.
 
-## Packages
+## Modules
 
-| Package | Responsibility |
+| Module | Responsibility |
 | --- | --- |
-| `internal/audit` | Read-only scanners, findings, report exit codes, and selected remediation orchestration |
-| `internal/clean` | Cleanup targets, APT-policy autoremove, Snap revisions, caches, journal, and Docker build cache |
-| `internal/uninstall` | APT/Snap discovery, source-qualified selection, package removal, and owned-remnant cleanup |
-| `internal/optimize` | Independent maintenance steps with success, failed, and skipped states |
-| `internal/status` | `/proc` and mountinfo metrics, root-disk health, JSON and TUI output |
-| `internal/utils` | XDG paths, whitelist configuration, cleanup boundaries, trash, sizes, and operation log |
-| `internal/command` | Context-aware injectable external command runner |
+| `src/audit` | Read-only scanners, findings, report exit codes, and selected remediation orchestration |
+| `src/clean` | Cleanup targets, APT-policy autoremove, Snap revisions, caches, journal, and Docker build cache |
+| `src/uninstall` | APT/Snap discovery, source-qualified selection, package removal, and owned-remnant cleanup |
+| `src/optimize.rs` | Independent maintenance steps with success, failed, and skipped states |
+| `src/status` | `/proc` and mountinfo metrics, root-disk health, JSON and TUI output |
+| `src/{paths,whitelist,config,xdg,trash,size,oplog,error}.rs` | XDG paths, whitelist configuration, cleanup boundaries, trash, sizes, and operation log |
+| `src/runner.rs` | Injectable external command runner with timeout kill + fake for tests |
+| `src/tui` | ratatui widgets: main menu, YES/NO confirm, uninstall search, status dashboard, run shell |
 
 ## Safety Boundaries
 

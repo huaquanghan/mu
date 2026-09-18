@@ -1,0 +1,29 @@
+
+📋 Audit report
+
+  Health score:     57/100
+  Disk / free:      47%
+  Reclaimable:      1.5 GB
+
+  Findings:
+  • warning  Journal Logs  1.3 GB [recommended]
+           Estimated reclaimable: space under Journal Logs. Requires sudo.
+  • info     User Cache (~/.cache)  193.1 MB
+           Estimated reclaimable: space under User Cache (~/.cache).
+  • info     Browser Caches (Chrome/Firefox/VSCode)  10.8 MB [opt-in]
+           Estimated reclaimable: space under Browser Caches (Chrome/Firefox/VSCode). Opt-in category — not selected by default.
+  • info     APT Package Cache  2.6 MB
+           Estimated reclaimable: space under APT Package Cache. Requires sudo.
+  • info     Font Cache (all users)  1.6 MB
+           Estimated reclaimable: space under Font Cache (all users). Requires sudo.
+  • info     Refresh icon/font/MIME caches
+           Low priority maintenance; rarely frees disk space.
+  • info     System health score is moderate (57/100) [guide]
+           No critical health issue; cleanup may still reclaim space.
+
+  Recommended commands:
+    mu clean --dry-run
+    mu clean
+
+  Run `mu audit` (interactive) to select and apply fixes.
+
