@@ -3,9 +3,9 @@ id: A3QXRH2M10G33JC71A7ZC9QMFF
 type: plan
 intake_id: A3QXRH2M10JH2T9DMPP9WJPE7G
 lane: high-risk
-status: active
+status: completed
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-22
 ---
 
 # Plan: Port mu from Go to Rust (full rewrite, UI/UX parity)
@@ -172,7 +172,7 @@ updated: 2026-09-15
 - phases:
   - phase_slug: rust-scaffold
     story_id: CWS0SH2M10SHM4JGGZ3WB9FKSF
-    status: checked
+    status: done
     goal: Cargo crate `mu` exists at repo root building a stub binary; golden outputs captured from the Go binary while it still builds; Rust build/test targets wired into Makefile
     depends_on: none
     allowed_surfaces: [Cargo.toml, Cargo.lock, src/, Makefile, scripts/, tests/golden/, .github/workflows/]
@@ -190,7 +190,7 @@ updated: 2026-09-15
           - `make test` (Go) still passes — oracle untouched
   - phase_slug: core-safety
     story_id: CWS0SH2M107EBN8DCQVWP34TAQ
-    status: checked
+    status: done
     goal: Safety foundation ported — XDG paths, protected-path/whitelist logic (fail-closed), trash deletion (gio + XDG fallback), oplog rotation, injectable command runner, size humanizer — each with the Go unit tests ported
     depends_on: rust-scaffold
     allowed_surfaces: [src/paths.rs, src/config.rs, src/whitelist.rs, src/trash.rs, src/oplog.rs, src/runner.rs, src/size.rs, src/xdg.rs, src/error.rs, tests/]
@@ -212,7 +212,7 @@ updated: 2026-09-15
           - `rg "unsafe" src/` returns nothing
   - phase_slug: status-port
     story_id: CWS0SH2M10GWVC3QC3AF0BNYTG
-    status: checked
+    status: done
     goal: `mu status` data layer ported — /proc + mountinfo parsing, health score, serde JSON model with `scan_errors`, piped-JSON output matching Go schema
     depends_on: core-safety
     allowed_surfaces: [src/status/, src/main.rs (status wiring), tests/]
@@ -227,7 +227,7 @@ updated: 2026-09-15
           - `diff <(bin/mu status | jq -S .) <(target/release/mu status | jq -S .)` — schema-identical (values vary; keys/order via `jq -S 'keys'`)
   - phase_slug: clean-port
     story_id: CWS0SH2M10P52SF9THDAB20XQB
-    status: checked
+    status: done
     goal: `mu clean` + `mu optimize` logic ported — all scan targets, CleanTarget trait (scan/preview/execute(dry_run)), opt-in validation, select→confirm→execute flow, optimize steps with success/failed/skipped states
     depends_on: core-safety
     allowed_surfaces: [src/clean/, src/optimize.rs, src/runtext.rs, src/main.rs, tests/]
@@ -248,7 +248,7 @@ updated: 2026-09-15
           - `diff tests/golden/clean-dry-run.txt <(target/release/mu clean --dry-run)` — identical modulo volatile sizes
   - phase_slug: uninstall-audit
     story_id: CWS0SH2M10KP5RYD4P52EXQPB2
-    status: checked
+    status: done
     goal: `mu uninstall` and `mu audit` logic ported — package discovery (dpkg-query + snap list), `source:name` model, remnant scan/removal ordering, audit scan→select→apply→re-score with `--report`/`--json` exit codes
     depends_on: clean-port
     allowed_surfaces: [src/uninstall/, src/audit/, src/main.rs, tests/]
@@ -264,7 +264,7 @@ updated: 2026-09-15
           - `mu audit --report` exit codes verified: 0, 1, 2 on fixture findings
   - phase_slug: cli-shell
     story_id: CWS0SH2M10F5FABJ805S6XZFCB
-    status: checked
+    status: done
     goal: clap CLI matches cobra contract exactly — full flag set, help text, exit codes, `--version`, no-arg entry point
     depends_on: uninstall-audit
     allowed_surfaces: [src/cli.rs, src/main.rs, build.rs, tests/]
@@ -278,7 +278,7 @@ updated: 2026-09-15
           - `target/release/mu audit --report; echo $?` — exit codes 0/1/2 preserved
   - phase_slug: tui-port
     story_id: CWS0SH2M10QWB419Q2TDGSC4GC
-    status: checked
+    status: done
     goal: ratatui+crossterm TUI matches Go build screen-for-screen — main menu, uninstall search/multi-select, YES/NO confirm, status live dashboard, runner spinner, alt-screen, colors, hint-line convention
     depends_on: cli-shell
     allowed_surfaces: [src/tui/, src/main.rs, tests/]
@@ -300,7 +300,7 @@ updated: 2026-09-15
           - manual: side-by-side screen diff for each TUI flow
   - phase_slug: parity-gate
     story_id: CWS0SH2M10PWWY4XPZFW971TMQ
-    status: in-progress
+    status: done
     goal: Final parity verification, then cutover — golden diffs clean, full gates pass, Go sources removed, build flipped to cargo, docs updated
     depends_on: tui-port
     allowed_surfaces: [entire repo — this phase performs the cutover]
@@ -392,6 +392,7 @@ updated: 2026-09-15
 - `2026-09-18T05:30:00Z` — phase parity-gate, REQUEST_CHANGES fix wave. decision: TTY drivers are thin ratatui shells over the already-ported state machines (FlowModel/AuditModel/UninstallTui/StatusDashboard), not rewrites. rationale: the critical bug was a tested-vs-shipped split — business models were ported and unit-tested but never driven; reusing them keeps behavioral parity proven by the existing suites and limits new code to event loops + cmd dispatch (Go's tea.Cmd boundary).
 - `2026-09-18T05:30:00Z` — phase parity-gate, REQUEST_CHANGES fix wave. decision: musl target over crt-static feature flags for M4. rationale: `cargo build --release --target x86_64-unknown-linux-musl` produces a true static-pie artifact identical to Go's CGO_ENABLED=0 contract with no nightly flags; the two musl-gated APIs (nix::fcntl::renameat2, stat.block_size type width) were ported to safe alternatives preserving semantics and the no-unsafe gate proof.
 - `2026-09-18T05:30:00Z` — phase parity-gate, REQUEST_CHANGES fix wave. decision: renameat2 replaced with create_new/create_dir placeholder reservation + rename (not unsafe syscall). rationale: nix gates renameat2 to target_env=gnu; the reservation strategy gives the same EEXIST no-clobber semantics on every target while keeping the zero-unsafe rule the gate verifies.
+- `2026-09-22` — closing handoff. absorb: adr docs/decisions/0006-rust-rewrite-accepted-parity-divergences.md
 
 ## Validation
 <!-- Append-only durable entries record timestamp, phase, exact command/result/output, run_id, check_id, verdict, and proof_gaps. -->
@@ -543,12 +544,12 @@ updated: 2026-09-15
   - proof_gaps: side-by-side TTY screen diff manual-only; `make release`/`gh release` untested end-to-end; nothing committed — entire initiative in working tree; one wedged reviewer (ee0e1915, ~90min) replaced by 46e744ea mid-check
 
 ## Current State and Next Action
-- active_phase: parity-gate
-- lifecycle_status: in-progress (third independent `check full` COMPLETE: APPROVE_WITH_REQUESTS — all findings fixed + re-verified; cli.rs now byte-exact vs cobra on every behavioral path; phase awaits `git`/`handoff`)
+- active_phase: none
+- lifecycle_status: done (initiative complete — cutover committed as c2cb17f and pushed to origin/main; FULL3 `check full` APPROVE_WITH_REQUESTS with all findings fixed + re-verified; accepted divergences recorded in docs/decisions/0006-rust-rewrite-accepted-parity-divergences.md)
 - latest_run_id: PAR0ESZNP074SQXASD5PVZTCWS1
 - latest_trace_ids: none
 - latest_check_id: PAR0ESZNP074SQXASD5PVZTCWS1-FULL3
-- latest_handoff_id: none
-- blockers: [none open — C1/M1/M2/M3/M4 verified FIXED; FULL2 remnant-bridge + armed-button fixed; FULL3 modified-key completion + uninstall catch_unwind + cobra parser emulation fixed; parser oracle-verified 62/62 error paths byte-identical]
-- open_items: [cli-shell deferred minors: no golden file for COMPLETION_HELP (m6 — behavior now oracle-verified byte-exact; m3/m4/m7 RESOLVED by FULL3 parser rewrite: `completion bash --help`, `--include=,`, `completion help` all byte-identical); status-port deferred: SIGPIPE exit-141 parity — resolved WONTFIX at parity-gate (Decision 2026-09-18), bufio 64KiB scanner-cap edge (unreachable for /proc files); core-safety deferred: io-error text phrasing vs Go, File::open(".") dirfd fails if cwd deleted, TrashRecovery #[source] chain absent; tui-port deferred: side-by-side manual screen diff (TUI requires real TTY; CI is non-TTY), RunShell animated widget unwired (clean/optimize use run_plain), menu health collection blocks 1s (sync collect_health vs Go async tea.Cmd), confirm button padding approximates Go Padding(0,2); parity-gate: nothing committed — entire initiative exists only in working tree + git HEAD history for deleted Go sources; check-full minors (~20): stale docs/templates (CONTEXT_RULES, validation templates dead gates, docs/README, FEATURE_INTAKE, HARNESS Go refs, README configs/ path), capture-golden unlabeled dead script, parity-diff minors (digit-masking, stderr asymmetry, mutual-timeout PASS, FAIL-label overwrite — go.mod guard FIXED in fix wave), release local-tag-only gate (builds-before-tag FIXED), walk_user_cache recursion — verified Go-identical (WalkDir recurses too), tui/uninstall.rs:136 usize sub FIXED, discover.rs starts_with — verified = strings.HasPrefix port, bool-flag ParseBool gap FIXED, `mu --debug` menu drop FIXED, unused deps FIXED, ~1.5k LOC dead state machines — now SHIPPED via new drivers (no longer dead), zero integration tests FIXED (tests/cli_integration.rs 12 tests), human_kb/human_bytes — verified two distinct Go helpers, cli.rs env! FIXED (option_env!), cmd_help unwraps; stale docs/templates: CONTEXT_RULES/docs/README/FEATURE_INTAKE/HARNESS Go refs + README configs/ path remain open (harness-managed, low-risk), capture-golden marked HISTORICAL, TTY screen-diff vs Go oracle still unproven (pty-verified individually, not side-by-side)]
-- exact_next_action: `git` (commit the ~17k LOC initiative — zero rollback point until then; plan moves to completed/ after commit), then `handoff`
+- latest_handoff_id: 01M33XFQDV6NB726ET2SQ50F2C
+- blockers: none
+- open_items: none (all deferred minors absorbed as accepted divergences in docs/decisions/0006-rust-rewrite-accepted-parity-divergences.md)
+- exact_next_action: `git` — commit docs/decisions/0006-rust-rewrite-accepted-parity-divergences.md together with this plan move (docs/plans/active/rust-rewrite.md → docs/plans/completed/rust-rewrite.md); the decision file already cites the completed path as authority
