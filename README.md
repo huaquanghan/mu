@@ -70,6 +70,7 @@ Scans and frees disk space across:
 | User cache (`~/.cache`) | ✓ | |
 | Thumbnail cache | ✓ | |
 | Font cache (all users) | ✓ | |
+| Sandboxed font caches (snap/flatpak) | ✓ | |
 | APT package cache | ✓ | |
 | Journal logs | ✓ | |
 | Snap disabled revisions | ✓ | |
