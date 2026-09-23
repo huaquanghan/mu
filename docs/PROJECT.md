@@ -39,4 +39,6 @@
   parser); no-arg TTY → `tui::run_tui()` ratatui menu
 
 ## What are we working on right now?
-- plan: docs/plans/active/rust-rewrite.md (active)
+- plan: none — no active plan under `docs/plans/active/`. Last initiative:
+  `docs/plans/completed/rust-rewrite.md` (completed 2026-09-22; accepted
+  divergences in `docs/decisions/0006-rust-rewrite-accepted-parity-divergences.md`).
