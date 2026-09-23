@@ -132,6 +132,7 @@ pub(crate) fn all_targets_in(deps: &Deps) -> Vec<CleanTarget> {
         targets::user_cache_target_in(deps),
         targets::thumbnails_target_in(deps),
         targets::font_cache_target_in(deps),
+        targets::sandbox_font_cache_target_in(deps),
         targets::apt_cache_target_in(deps),
         targets::journal_logs_target_in(deps),
         scan_snap::snap_target_in(deps),

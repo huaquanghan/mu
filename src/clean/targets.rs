@@ -1,6 +1,7 @@
 //! `targets.go` — the built-in clean targets that do not live in a scan_*:
 //! `userCache`, `thumbnails`, `fontCache`, `aptCache`, `journalLogs`, plus
-//! `JournalSize` and the `fontCacheDirs` helpers.
+//! `JournalSize` and the `fontCacheDirs` helpers. `sandboxFontCache` is
+//! post-port behavior with no Go counterpart.
 //!
 //! Every `*_in` constructor takes [`Deps`] — the Go env/package-var lookups
 //! (`XDGCacheHome`, `LoadWhitelist`, `SafeDelete`, `cleanRunner`) as explicit
@@ -400,6 +401,105 @@ pub(crate) fn font_cache_dirs_in(home_root: &Path, cache_home: &Path) -> Vec<Pat
     dirs
 }
 
+/// Sandboxed app homes whose fontconfig caches `mu` cleans, as
+/// `(root under home, cache path relative to the app dir)`.
+const SANDBOX_CACHE_ROOTS: &[(&str, &str)] = &[
+    ("snap", "common/.cache/fontconfig"),
+    (".var/app", "cache/fontconfig"),
+];
+
+/// `sandboxFontCacheTarget` — fontconfig caches inside sandboxed app homes:
+/// `~/snap/*/common/.cache/fontconfig` (snap) and
+/// `~/.var/app/*/cache/fontconfig` (flatpak). These are the current user's
+/// own files, so unlike `fontCacheTarget` removal goes through `SafeDelete`
+/// (trash) and needs no sudo.
+pub(crate) fn sandbox_font_cache_target_in(deps: &Deps) -> CleanTarget {
+    let scan_home = deps.home.clone();
+    let prev_home = deps.home.clone();
+    let exec_home = deps.home.clone();
+    let exec_cfg = deps.config_home.clone();
+    let exec_runner = Arc::clone(&deps.trash_runner);
+    let exec_deps = deps.trash_deps.clone();
+
+    CleanTarget {
+        id: "sandbox-font-cache",
+        label: "Sandboxed Font Caches (snap/flatpak)",
+        requires_sudo: false,
+        opt_in: false,
+        scan: Box::new(move || {
+            let mut total: i64 = 0;
+            for (_, dir) in sandbox_font_cache_dirs_in(&scan_home) {
+                let (bytes, _) = size::dir_size(&dir); // unreadable dirs count as 0
+                total += bytes as i64;
+            }
+            (total, None)
+        }),
+        preview: Some(Box::new(move || {
+            (
+                sandbox_font_cache_dirs_in(&prev_home)
+                    .into_iter()
+                    .map(|(_, dir)| dir.to_string_lossy().into_owned())
+                    .collect(),
+                None,
+            )
+        })),
+        execute: Box::new(move |dry_run| {
+            let mut delete_errors: Vec<Error> = Vec::new();
+            for (root, dir) in sandbox_font_cache_dirs_in(&exec_home) {
+                // Each candidate is validated against the boundary it was
+                // discovered under, so a symlinked `~/snap` or `~/.var/app`
+                // fails closed instead of deleting outside it.
+                if let Err(e) = paths::validate_cleanup_candidate(&root, &dir) {
+                    delete_errors.push(e);
+                    continue;
+                }
+                if let Err(e) =
+                    trash::safe_delete_with(&*exec_runner, &exec_cfg, &exec_deps, &dir, dry_run)
+                {
+                    delete_errors.push(e);
+                }
+            }
+            if delete_errors.is_empty() {
+                Ok(())
+            } else {
+                Err(super::join_errors(&delete_errors))
+            }
+        }),
+    }
+}
+
+/// `sandboxFontCacheDirs` — the testable core: `home` replaces
+/// `os.UserHomeDir()`. Returns `(root, dir)` pairs so the execute path can
+/// validate each candidate against the boundary it was discovered under.
+/// Only real directories qualify — a missing or symlinked cache is skipped.
+pub(crate) fn sandbox_font_cache_dirs_in(home: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let mut found = Vec::new();
+    for &(root_rel, cache_rel) in SANDBOX_CACHE_ROOTS {
+        let root = home.join(root_rel);
+        let Ok(entries) = std::fs::read_dir(&root) else {
+            continue; // no snap/flatpak apps for this user
+        };
+        // `os.ReadDir` returns entries sorted by filename — sort for the
+        // same deterministic preview order on multi-app systems.
+        let mut apps: Vec<_> = entries.flatten().collect();
+        apps.sort_by_key(|e| e.file_name());
+        for app in apps {
+            // `e.IsDir()` — readdir type bits, a symlink is NOT a dir.
+            if !app.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let dir = root.join(app.file_name()).join(cache_rel);
+            match dir.symlink_metadata() {
+                Ok(info) if info.is_dir() && !info.file_type().is_symlink() => {
+                    found.push((root.clone(), dir));
+                }
+                _ => {}
+            }
+        }
+    }
+    found
+}
+
 /// `JournalSize` — parses `journalctl --disk-usage` to get journal size in
 /// bytes. A missing journalctl is optional; command and parse failures are
 /// returned.
@@ -617,6 +717,142 @@ mod tests {
         // Go then checks PathExists("/var/cache/fontconfig") and skips when
         // absent — presence on this host is informational either way.
         let _ = paths::path_exists(Path::new("/var/cache/fontconfig"));
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    // Post-port behavior (no Go oracle): sandboxed app font caches.
+    #[test]
+    fn sandbox_font_cache_dirs_enumerates_snap_and_flatpak() {
+        let tmp = tempdir("sandboxdirs");
+        let home = tmp.join("home");
+
+        let snap_firefox = home.join("snap/firefox/common/.cache/fontconfig");
+        let snap_thunderbird = home.join("snap/thunderbird/common/.cache/fontconfig");
+        let flatpak_telegram = home.join(".var/app/org.telegram.desktop/cache/fontconfig");
+        for d in [&snap_firefox, &snap_thunderbird, &flatpak_telegram] {
+            fs::create_dir_all(d).unwrap();
+        }
+
+        // Noise: a plain file in ~/snap, an app without the cache path, a
+        // symlinked cache dir, and a symlinked app dir.
+        fs::write(home.join("snap/README"), "not an app").unwrap();
+        fs::create_dir_all(home.join("snap/snapd/common")).unwrap();
+        fs::create_dir_all(home.join("snap/gimp/common/.cache")).unwrap();
+        let outside = tmp.join("outside-fontconfig");
+        fs::create_dir_all(&outside).unwrap();
+        symlink(&outside, home.join("snap/gimp/common/.cache/fontconfig")).unwrap();
+        fs::create_dir_all(home.join(".var/app/org.example.App/cache")).unwrap();
+        symlink(
+            &snap_firefox,
+            home.join(".var/app/org.example.App/cache/fontconfig"),
+        )
+        .unwrap();
+
+        let found = sandbox_font_cache_dirs_in(&home);
+        let dirs: Vec<_> = found.iter().map(|(_, d)| d.clone()).collect();
+
+        assert_eq!(
+            dirs,
+            vec![
+                snap_firefox.clone(),
+                snap_thunderbird.clone(),
+                flatpak_telegram.clone()
+            ],
+            "unexpected discovery: {dirs:?}"
+        );
+        // Each candidate carries the boundary it was discovered under.
+        assert_eq!(found[0].0, home.join("snap"), "snap root");
+        assert_eq!(found[2].0, home.join(".var/app"), "flatpak root");
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn sandbox_font_cache_target_trashes_caches_and_keeps_siblings() {
+        let tmp = tempdir("sandboxtrash");
+        // `deps_for_test` roots home at the tempdir itself.
+        let home = tmp.clone();
+        let snap_cache = home.join("snap/firefox/common/.cache/fontconfig");
+        let flatpak_cache = home.join(".var/app/org.telegram.desktop/cache/fontconfig");
+        for d in [&snap_cache, &flatpak_cache] {
+            fs::create_dir_all(d).unwrap();
+            fs::write(d.join("f.cache-7"), "font cache data").unwrap();
+        }
+        // Sibling data in the same sandbox home must survive.
+        let snap_state = home.join("snap/firefox/common/.local/share/keep/state");
+        fs::create_dir_all(snap_state.parent().unwrap()).unwrap();
+        fs::write(&snap_state, "keep me").unwrap();
+
+        let deps = deps_for_test(&tmp, Arc::new(FakeRunner::new()));
+        oplog::init_logger_at(&deps.data_home).expect("init logger");
+        let target = sandbox_font_cache_target_in(&deps);
+
+        let scanned = (target.scan)().0;
+        assert!(
+            scanned >= 2 * "font cache data".len() as i64,
+            "scan size {scanned} missed the caches"
+        );
+        let preview = target.preview.as_ref().expect("preview");
+        assert_eq!((preview)().0.len(), 2, "preview should list both caches");
+
+        (target.execute)(true).expect("dry-run execute");
+        assert!(
+            paths::path_exists(&snap_cache),
+            "dry-run must keep the snap cache"
+        );
+        assert!(
+            paths::path_exists(&flatpak_cache),
+            "dry-run must keep the flatpak cache"
+        );
+
+        (target.execute)(false).expect("execute");
+        oplog::close_logger();
+        assert!(
+            !paths::path_exists(&snap_cache),
+            "snap font cache should have been trashed"
+        );
+        assert!(
+            !paths::path_exists(&flatpak_cache),
+            "flatpak font cache should have been trashed"
+        );
+        assert!(
+            paths::path_exists(&snap_state),
+            "sibling sandbox data must survive"
+        );
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn sandbox_font_cache_scan_allows_missing_roots() {
+        let tmp = tempdir("sandboxmissing");
+        let deps = deps_for_test(&tmp, Arc::new(FakeRunner::new()));
+        let target = sandbox_font_cache_target_in(&deps);
+        assert_eq!((target.scan)().0, 0, "no sandboxed apps means no size");
+        (target.execute)(true).expect("dry-run with no sandboxed apps");
+        (target.execute)(false).expect("execute with no sandboxed apps");
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn sandbox_font_cache_rejects_symlinked_root() {
+        let tmp = tempdir("sandboxsymlink");
+        let real = tmp.join("real-snap");
+        let cache = real.join("firefox/common/.cache/fontconfig");
+        fs::create_dir_all(&cache).unwrap();
+        fs::write(cache.join("f.cache-7"), "font cache data").unwrap();
+        // `deps_for_test` roots home at the tempdir, so ~/snap is tmp/snap.
+        symlink(&real, tmp.join("snap")).unwrap();
+
+        let deps = deps_for_test(&tmp, Arc::new(FakeRunner::new()));
+        let err = (sandbox_font_cache_target_in(&deps).execute)(false)
+            .expect_err("a symlinked root must fail closed");
+        assert!(
+            err.to_string().contains("symlink"),
+            "expected symlink refusal, got {err}"
+        );
+        assert!(
+            paths::path_exists(&cache.join("f.cache-7")),
+            "cache outside the boundary must survive"
+        );
         fs::remove_dir_all(&tmp).ok();
     }
 
